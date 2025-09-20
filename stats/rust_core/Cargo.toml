@@ -1,0 +1,9 @@
+# This directory contains the rust_core packages that are now part of the unified workspace
+#
+# The packages include:
+# - inference: High-performance inference engine for Gemma models
+# - server: Native Axum HTTP server for Gemma API
+# - wasm: WebAssembly bindings for browser integration
+# - cross: Cross-platform compilation utilities
+#
+# These packages are included in the root workspace at C:\codedev\llm\stats\Cargo.toml

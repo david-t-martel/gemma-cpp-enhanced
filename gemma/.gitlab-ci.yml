@@ -1,0 +1,455 @@
+# Enhanced Gemma.cpp GitLab CI/CD Pipeline
+# Multi-platform builds with hardware acceleration backends
+
+stages:
+  - preflight
+  - build
+  - test
+  - package
+  - deploy
+  - release
+
+variables:
+  BUILD_TYPE: "Release"
+  CMAKE_PARALLEL_JOBS: "4"
+  DOCKER_REGISTRY: "$CI_REGISTRY"
+  IMAGE_NAME: "$CI_REGISTRY_IMAGE"
+  GIT_SUBMODULE_STRATEGY: recursive
+
+# =============================================================================
+# Templates and Common Configurations
+# =============================================================================
+
+.build_template: &build_template
+  stage: build
+  before_script:
+    - echo "Starting build for $CI_JOB_NAME"
+    - echo "Commit SHA: $CI_COMMIT_SHA"
+    - echo "Build type: $BUILD_TYPE"
+  script:
+    - cmake -B build -G Ninja
+        -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+        -DGEMMA_BUILD_MCP_SERVER=ON
+        -DGEMMA_BUILD_BACKENDS=ON
+        -DGEMMA_BUILD_ENHANCED_TESTS=ON
+        -DGEMMA_BUILD_BENCHMARKS=ON
+        -DGEMMA_AUTO_DETECT_BACKENDS=ON
+        $CMAKE_BACKEND_OPTIONS
+    - cmake --build build --config $BUILD_TYPE --parallel $CMAKE_PARALLEL_JOBS
+  artifacts:
+    paths:
+      - build/
+    expire_in: 2 hours
+    reports:
+      junit: build/test_results.xml
+  cache:
+    key: "$CI_JOB_NAME-$CI_COMMIT_REF_SLUG"
+    paths:
+      - build/_deps/
+      - .cmake/
+
+.test_template: &test_template
+  stage: test
+  script:
+    - cd build
+    - ctest --output-on-failure --parallel $CMAKE_PARALLEL_JOBS -C $BUILD_TYPE
+  artifacts:
+    reports:
+      junit: build/test_results.xml
+    when: always
+
+.docker_template: &docker_template
+  stage: package
+  image: docker:24.0.7
+  services:
+    - docker:24.0.7-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - |
+      docker build \
+        --build-arg BUILD_TYPE=$BUILD_TYPE \
+        --build-arg ENABLE_CUDA=$ENABLE_CUDA \
+        --build-arg ENABLE_SYCL=$ENABLE_SYCL \
+        --build-arg ENABLE_VULKAN=$ENABLE_VULKAN \
+        --build-arg ENABLE_OPENCL=$ENABLE_OPENCL \
+        --build-arg ENABLE_MCP_SERVER=true \
+        --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+        --build-arg VCS_REF=$CI_COMMIT_SHA \
+        --tag $IMAGE_NAME:$IMAGE_TAG \
+        .
+    - docker push $IMAGE_NAME:$IMAGE_TAG
+  only:
+    - main
+    - develop
+    - tags
+
+# =============================================================================
+# Pre-flight Checks
+# =============================================================================
+
+preflight:format:
+  stage: preflight
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update && apt-get install -y clang-format git
+  script:
+    - find . -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | xargs clang-format --dry-run --Werror
+  only:
+    changes:
+      - "**/*.cpp"
+      - "**/*.h"
+      - "**/*.hpp"
+
+preflight:cmake:
+  stage: preflight
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update && apt-get install -y cmake
+  script:
+    - cmake --version
+    - cmake -B build -G "Unix Makefiles" --dry-run .
+  artifacts:
+    paths:
+      - build/CMakeCache.txt
+    expire_in: 1 hour
+
+# =============================================================================
+# Linux Builds
+# =============================================================================
+
+build:linux:cpu:
+  <<: *build_template
+  image: ubuntu:22.04
+  variables:
+    CMAKE_BACKEND_OPTIONS: "-DGEMMA_BUILD_VULKAN_BACKEND=ON -DGEMMA_BUILD_OPENCL_BACKEND=ON"
+  before_script:
+    - apt-get update && apt-get install -y
+        build-essential cmake ninja-build
+        libvulkan-dev vulkan-tools
+        opencl-headers ocl-icd-opencl-dev
+  tags:
+    - linux
+
+build:linux:cuda:
+  <<: *build_template
+  image: nvidia/cuda:12.0-devel-ubuntu22.04
+  variables:
+    CMAKE_BACKEND_OPTIONS: "-DGEMMA_BUILD_CUDA_BACKEND=ON -DGEMMA_BUILD_VULKAN_BACKEND=ON"
+  before_script:
+    - apt-get update && apt-get install -y
+        build-essential cmake ninja-build
+        libvulkan-dev vulkan-tools
+  tags:
+    - linux
+    - gpu
+
+build:linux:sycl:
+  <<: *build_template
+  image: ubuntu:22.04
+  variables:
+    CMAKE_BACKEND_OPTIONS: "-DGEMMA_BUILD_SYCL_BACKEND=ON"
+  before_script:
+    - apt-get update && apt-get install -y build-essential cmake ninja-build wget gpg
+    # Install Intel oneAPI
+    - wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+    - echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list
+    - apt-get update && apt-get install -y intel-oneapi-dpcpp-cpp-compiler
+    - source /opt/intel/oneapi/setvars.sh
+  tags:
+    - linux
+
+# =============================================================================
+# Windows Builds
+# =============================================================================
+
+build:windows:cpu:
+  <<: *build_template
+  image: mcr.microsoft.com/windows/servercore:ltsc2022
+  variables:
+    CMAKE_BACKEND_OPTIONS: "-DGEMMA_BUILD_VULKAN_BACKEND=ON -DGEMMA_BUILD_OPENCL_BACKEND=ON"
+  before_script:
+    # Install chocolatey and dependencies
+    - Set-ExecutionPolicy Bypass -Scope Process -Force
+    - iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+    - choco install -y cmake ninja git
+    # Install Vulkan SDK
+    - $VulkanSDK = "https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-sdk.exe"
+    - Invoke-WebRequest -Uri $VulkanSDK -OutFile vulkan-sdk.exe
+    - Start-Process -Wait vulkan-sdk.exe -ArgumentList "--accept-licenses", "--default-answer", "--confirm-command", "install"
+  tags:
+    - windows
+
+build:windows:cuda:
+  <<: *build_template
+  image: mcr.microsoft.com/windows/servercore:ltsc2022
+  variables:
+    CMAKE_BACKEND_OPTIONS: "-DGEMMA_BUILD_CUDA_BACKEND=ON"
+  before_script:
+    - Set-ExecutionPolicy Bypass -Scope Process -Force
+    - iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+    - choco install -y cmake ninja git cuda
+  tags:
+    - windows
+    - gpu
+
+# =============================================================================
+# Testing
+# =============================================================================
+
+test:linux:unit:
+  <<: *test_template
+  image: ubuntu:22.04
+  dependencies:
+    - build:linux:cpu
+  before_script:
+    - apt-get update && apt-get install -y libvulkan1 ocl-icd-libopencl1
+  tags:
+    - linux
+
+test:linux:integration:
+  <<: *test_template
+  image: ubuntu:22.04
+  dependencies:
+    - build:linux:cpu
+  script:
+    - cd build
+    - ./tests/integration/test_integration --gtest_output=xml:integration_results.xml
+  artifacts:
+    reports:
+      junit: build/integration_results.xml
+    when: always
+  tags:
+    - linux
+
+test:performance:
+  stage: test
+  image: ubuntu:22.04
+  dependencies:
+    - build:linux:cpu
+  script:
+    - cd build
+    - ./benchmarks --benchmark_format=json --benchmark_out=benchmark_results.json
+  artifacts:
+    paths:
+      - build/benchmark_results.json
+    expire_in: 1 week
+    reports:
+      performance: build/benchmark_results.json
+  tags:
+    - linux
+  only:
+    - main
+    - develop
+
+# =============================================================================
+# Docker Images
+# =============================================================================
+
+docker:cpu-only:
+  <<: *docker_template
+  variables:
+    IMAGE_TAG: "$CI_COMMIT_REF_SLUG-cpu-only"
+    ENABLE_CUDA: "false"
+    ENABLE_SYCL: "false"
+    ENABLE_VULKAN: "true"
+    ENABLE_OPENCL: "true"
+
+docker:cuda:
+  <<: *docker_template
+  variables:
+    IMAGE_TAG: "$CI_COMMIT_REF_SLUG-cuda"
+    ENABLE_CUDA: "true"
+    ENABLE_SYCL: "false"
+    ENABLE_VULKAN: "true"
+    ENABLE_OPENCL: "true"
+  only:
+    - main
+    - develop
+    - tags
+
+docker:sycl:
+  <<: *docker_template
+  variables:
+    IMAGE_TAG: "$CI_COMMIT_REF_SLUG-sycl"
+    ENABLE_CUDA: "false"
+    ENABLE_SYCL: "true"
+    ENABLE_VULKAN: "true"
+    ENABLE_OPENCL: "true"
+  only:
+    - main
+    - develop
+    - tags
+
+docker:all-backends:
+  <<: *docker_template
+  variables:
+    IMAGE_TAG: "$CI_COMMIT_REF_SLUG-all-backends"
+    ENABLE_CUDA: "true"
+    ENABLE_SYCL: "true"
+    ENABLE_VULKAN: "true"
+    ENABLE_OPENCL: "true"
+  only:
+    - main
+    - tags
+
+# =============================================================================
+# Package and Deploy
+# =============================================================================
+
+package:linux:
+  stage: package
+  image: ubuntu:22.04
+  dependencies:
+    - build:linux:cpu
+    - build:linux:cuda
+    - build:linux:sycl
+  script:
+    - mkdir -p dist/linux
+    - tar -czf dist/linux/gemma-cpp-enhanced-$CI_COMMIT_REF_SLUG-linux.tar.gz build/
+  artifacts:
+    paths:
+      - dist/linux/
+    expire_in: 1 week
+  tags:
+    - linux
+
+package:windows:
+  stage: package
+  image: mcr.microsoft.com/windows/servercore:ltsc2022
+  dependencies:
+    - build:windows:cpu
+    - build:windows:cuda
+  script:
+    - mkdir dist\windows
+    - Compress-Archive -Path build\* -DestinationPath dist\windows\gemma-cpp-enhanced-$env:CI_COMMIT_REF_SLUG-windows.zip
+  artifacts:
+    paths:
+      - dist/windows/
+    expire_in: 1 week
+  tags:
+    - windows
+
+deploy:staging:
+  stage: deploy
+  image: alpine:latest
+  dependencies:
+    - docker:cpu-only
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - echo "Deploying to staging environment"
+    - |
+      curl -X POST \
+        -H "Authorization: Bearer $STAGING_DEPLOY_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"image\":\"$IMAGE_NAME:$CI_COMMIT_REF_SLUG-cpu-only\"}" \
+        $STAGING_DEPLOY_WEBHOOK
+  environment:
+    name: staging
+    url: https://staging.gemma-cpp.example.com
+  only:
+    - develop
+
+deploy:production:
+  stage: deploy
+  image: alpine:latest
+  dependencies:
+    - docker:all-backends
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - echo "Deploying to production environment"
+    - |
+      curl -X POST \
+        -H "Authorization: Bearer $PRODUCTION_DEPLOY_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"image\":\"$IMAGE_NAME:$CI_COMMIT_REF_SLUG-all-backends\"}" \
+        $PRODUCTION_DEPLOY_WEBHOOK
+  environment:
+    name: production
+    url: https://gemma-cpp.example.com
+  when: manual
+  only:
+    - main
+    - tags
+
+# =============================================================================
+# Release
+# =============================================================================
+
+release:tag:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  dependencies:
+    - package:linux
+    - package:windows
+  script:
+    - echo "Creating release for tag $CI_COMMIT_TAG"
+  release:
+    name: 'Enhanced Gemma.cpp $CI_COMMIT_TAG'
+    description: 'Release $CI_COMMIT_TAG of Enhanced Gemma.cpp with hardware acceleration backends'
+    tag_name: '$CI_COMMIT_TAG'
+    ref: '$CI_COMMIT_TAG'
+    assets:
+      links:
+        - name: 'Linux Build'
+          url: '$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_TAG/raw/dist/linux/gemma-cpp-enhanced-$CI_COMMIT_TAG-linux.tar.gz?job=package:linux'
+        - name: 'Windows Build'
+          url: '$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_TAG/raw/dist/windows/gemma-cpp-enhanced-$CI_COMMIT_TAG-windows.zip?job=package:windows'
+        - name: 'Docker CPU-Only'
+          url: '$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG-cpu-only'
+        - name: 'Docker All Backends'
+          url: '$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG-all-backends'
+  only:
+    - tags
+
+# =============================================================================
+# Security and Quality
+# =============================================================================
+
+security:sast:
+  stage: test
+  script:
+    - echo "Running static analysis security testing"
+  include:
+    - template: Security/SAST.gitlab-ci.yml
+
+security:container:
+  stage: test
+  dependencies:
+    - docker:cpu-only
+  script:
+    - echo "Running container security scanning"
+  include:
+    - template: Security/Container-Scanning.gitlab-ci.yml
+
+quality:sonarqube:
+  stage: test
+  image: sonarsource/sonar-scanner-cli:latest
+  dependencies:
+    - build:linux:cpu
+  script:
+    - sonar-scanner
+      -Dsonar.projectKey=gemma-cpp-enhanced
+      -Dsonar.sources=.
+      -Dsonar.host.url=$SONAR_HOST_URL
+      -Dsonar.login=$SONAR_TOKEN
+  only:
+    - main
+    - develop
+    - merge_requests
+
+# =============================================================================
+# Cleanup
+# =============================================================================
+
+cleanup:artifacts:
+  stage: .post
+  image: alpine:latest
+  script:
+    - echo "Cleaning up old artifacts"
+  when: always
+  only:
+    variables:
+      - $CI_PIPELINE_SOURCE == "schedule"

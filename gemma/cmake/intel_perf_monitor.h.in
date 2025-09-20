@@ -1,0 +1,208 @@
+/*
+ * Intel Performance Monitoring Header for Gemma.cpp
+ * Auto-generated from cmake/intel_perf_monitor.h.in
+ *
+ * This header provides Intel VTune and performance counter integration
+ * for detailed performance analysis of Gemma inference.
+ */
+
+#pragma once
+
+#ifdef INTEL_PERFORMANCE_MONITORING
+
+#include <chrono>
+#include <string>
+#include <unordered_map>
+
+#ifdef INTEL_VTUNE_PROFILING
+#include <ittnotify.h>
+#endif
+
+namespace intel_perf {
+
+class PerformanceMonitor {
+public:
+    static PerformanceMonitor& getInstance() {
+        static PerformanceMonitor instance;
+        return instance;
+    }
+
+    // High-resolution timer for performance measurement
+    using TimePoint = std::chrono::high_resolution_clock::time_point;
+    using Duration = std::chrono::nanoseconds;
+
+    // Performance counter categories
+    enum class CounterType {
+        INFERENCE_TIME,
+        TOKEN_GENERATION,
+        MATRIX_MULTIPLY,
+        ATTENTION_COMPUTE,
+        MEMORY_ALLOCATION,
+        SIMD_OPERATIONS
+    };
+
+    // Start timing a performance region
+    void startTiming(const std::string& region_name, CounterType type) {
+        auto start_time = std::chrono::high_resolution_clock::now();
+        timing_stack_[region_name] = {start_time, type};
+
+#ifdef INTEL_VTUNE_PROFILING
+        // Create VTune task for this region
+        auto* task = __itt_task_begin(__itt_domain_create("Gemma"),
+                                     __itt_string_handle_create(region_name.c_str()));
+        vtune_tasks_[region_name] = task;
+#endif
+    }
+
+    // End timing and record the result
+    Duration endTiming(const std::string& region_name) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+
+        auto it = timing_stack_.find(region_name);
+        if (it != timing_stack_.end()) {
+            auto duration = std::chrono::duration_cast<Duration>(
+                end_time - it->second.start_time);
+
+            // Record the timing
+            addSample(it->second.type, duration);
+            timing_stack_.erase(it);
+
+#ifdef INTEL_VTUNE_PROFILING
+            // End VTune task
+            auto task_it = vtune_tasks_.find(region_name);
+            if (task_it != vtune_tasks_.end()) {
+                __itt_task_end(__itt_domain_create("Gemma"));
+                vtune_tasks_.erase(task_it);
+            }
+#endif
+            return duration;
+        }
+        return Duration::zero();
+    }
+
+    // Add a performance sample
+    void addSample(CounterType type, Duration duration) {
+        performance_data_[type].samples.push_back(duration);
+        performance_data_[type].total_time += duration;
+        performance_data_[type].sample_count++;
+    }
+
+    // Get performance statistics
+    struct PerformanceStats {
+        Duration total_time{0};
+        Duration average_time{0};
+        Duration min_time{Duration::max()};
+        Duration max_time{Duration::min()};
+        size_t sample_count{0};
+    };
+
+    PerformanceStats getStats(CounterType type) const {
+        auto it = performance_data_.find(type);
+        if (it == performance_data_.end()) {
+            return {};
+        }
+
+        const auto& data = it->second;
+        PerformanceStats stats;
+        stats.total_time = data.total_time;
+        stats.sample_count = data.sample_count;
+
+        if (data.sample_count > 0) {
+            stats.average_time = Duration(data.total_time.count() / data.sample_count);
+
+            for (const auto& sample : data.samples) {
+                stats.min_time = std::min(stats.min_time, sample);
+                stats.max_time = std::max(stats.max_time, sample);
+            }
+        }
+
+        return stats;
+    }
+
+    // Reset all performance data
+    void reset() {
+        performance_data_.clear();
+        timing_stack_.clear();
+#ifdef INTEL_VTUNE_PROFILING
+        vtune_tasks_.clear();
+#endif
+    }
+
+    // Get all performance data as JSON-like string
+    std::string exportStats() const;
+
+private:
+    struct TimingEntry {
+        TimePoint start_time;
+        CounterType type;
+    };
+
+    struct PerformanceData {
+        std::vector<Duration> samples;
+        Duration total_time{0};
+        size_t sample_count{0};
+    };
+
+    std::unordered_map<CounterType, PerformanceData> performance_data_;
+    std::unordered_map<std::string, TimingEntry> timing_stack_;
+
+#ifdef INTEL_VTUNE_PROFILING
+    std::unordered_map<std::string, void*> vtune_tasks_;
+#endif
+};
+
+// RAII helper for automatic timing
+class ScopedTimer {
+public:
+    ScopedTimer(const std::string& region_name, PerformanceMonitor::CounterType type)
+        : region_name_(region_name) {
+        PerformanceMonitor::getInstance().startTiming(region_name_, type);
+    }
+
+    ~ScopedTimer() {
+        PerformanceMonitor::getInstance().endTiming(region_name_);
+    }
+
+private:
+    std::string region_name_;
+};
+
+// Convenience macros for easy performance monitoring
+#define INTEL_PERF_SCOPE(name, type) \
+    intel_perf::ScopedTimer _perf_timer_##__LINE__(name, intel_perf::PerformanceMonitor::CounterType::type)
+
+#define INTEL_PERF_START(name, type) \
+    intel_perf::PerformanceMonitor::getInstance().startTiming(name, intel_perf::PerformanceMonitor::CounterType::type)
+
+#define INTEL_PERF_END(name) \
+    intel_perf::PerformanceMonitor::getInstance().endTiming(name)
+
+#ifdef INTEL_VTUNE_PROFILING
+#define INTEL_VTUNE_DOMAIN_CREATE(name) __itt_domain_create(name)
+#define INTEL_VTUNE_TASK_BEGIN(domain, name) __itt_task_begin(domain, __itt_string_handle_create(name))
+#define INTEL_VTUNE_TASK_END(domain) __itt_task_end(domain)
+#define INTEL_VTUNE_FRAME_BEGIN() __itt_frame_begin_v3(__itt_domain_create("Gemma"), nullptr)
+#define INTEL_VTUNE_FRAME_END() __itt_frame_end_v3(__itt_domain_create("Gemma"), nullptr)
+#else
+#define INTEL_VTUNE_DOMAIN_CREATE(name) nullptr
+#define INTEL_VTUNE_TASK_BEGIN(domain, name)
+#define INTEL_VTUNE_TASK_END(domain)
+#define INTEL_VTUNE_FRAME_BEGIN()
+#define INTEL_VTUNE_FRAME_END()
+#endif
+
+} // namespace intel_perf
+
+#else
+
+// Empty macros when performance monitoring is disabled
+#define INTEL_PERF_SCOPE(name, type)
+#define INTEL_PERF_START(name, type)
+#define INTEL_PERF_END(name)
+#define INTEL_VTUNE_DOMAIN_CREATE(name) nullptr
+#define INTEL_VTUNE_TASK_BEGIN(domain, name)
+#define INTEL_VTUNE_TASK_END(domain)
+#define INTEL_VTUNE_FRAME_BEGIN()
+#define INTEL_VTUNE_FRAME_END()
+
+#endif // INTEL_PERFORMANCE_MONITORING

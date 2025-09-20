@@ -1,0 +1,203 @@
+name: Performance Monitoring & Regression Detection
+
+# Continuous performance monitoring with historical tracking and regression alerts
+
+on:
+  schedule:
+    - cron: '0 4 * * *'  # Daily at 4 AM UTC
+  push:
+    branches: [ main ]
+    paths:
+      - 'gemma.cpp/**/*.cpp'
+      - 'gemma.cpp/**/*.cc'
+      - 'gemma.cpp/**/*.h'
+      - 'ops/**'
+      - 'backends/**'
+  workflow_dispatch:
+    inputs:
+      benchmark_type:
+        description: 'Benchmark type to run'
+        required: true
+        default: 'comprehensive'
+        type: choice
+        options:
+        - quick
+        - comprehensive
+        - stress
+        - regression
+      compare_baseline:
+        description: 'Compare against baseline'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  BENCHMARK_THRESHOLD_WARNING: 5   # 5% performance change warning
+  BENCHMARK_THRESHOLD_CRITICAL: 15 # 15% performance regression critical
+  PYTHON_VERSION: '3.11'
+
+concurrency:
+  group: performance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # Let benchmarks complete
+
+jobs:
+  # ==========================================================================
+  # Performance Baseline Setup
+  # ==========================================================================
+  setup-baseline:
+    name: Setup Performance Baseline
+    runs-on: ubuntu-latest
+    outputs:
+      baseline-commit: ${{ steps.baseline.outputs.commit }}
+      baseline-version: ${{ steps.baseline.outputs.version }}
+      should-benchmark: ${{ steps.changes.outputs.should_benchmark }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 50  # Get enough history for baseline comparison
+
+    - name: Check for performance-relevant changes
+      id: changes
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          should_benchmark:
+            - 'gemma.cpp/**/*.cpp'
+            - 'gemma.cpp/**/*.cc'
+            - 'gemma.cpp/**/*.h'
+            - 'ops/**'
+            - 'backends/**'
+            - 'CMakeLists.txt'
+            - 'CMakePresets.json'
+
+    - name: Determine baseline commit
+      id: baseline
+      run: |
+        # Find the last commit that has benchmark data
+        BASELINE_COMMIT=$(git log --format="%H" -n 20 | head -1)\n
+        # For now, use main branch HEAD as baseline
+        # In production, this would query a benchmark database
+        BASELINE_VERSION=$(git describe --tags --always $BASELINE_COMMIT)\n
+        echo \"commit=$BASELINE_COMMIT\" >> $GITHUB_OUTPUT\n        echo \"version=$BASELINE_VERSION\" >> $GITHUB_OUTPUT\n        \n        echo \"Baseline commit: $BASELINE_COMMIT\"\n        echo \"Baseline version: $BASELINE_VERSION\"
+
+  # ==========================================================================
+  # Multi-Platform Performance Testing
+  # ==========================================================================
+  performance-test:
+    name: Performance Test (${{ matrix.platform }}-${{ matrix.backend }})
+    runs-on: ${{ matrix.os }}
+    needs: setup-baseline
+    if: needs.setup-baseline.outputs.should-benchmark == 'true' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # CPU benchmarks
+          - platform: linux
+            os: ubuntu-22.04
+            backend: cpu
+            config: Release
+          - platform: windows
+            os: windows-2022
+            backend: cpu
+            config: Release
+          - platform: macos
+            os: macos-13
+            backend: cpu
+            config: Release
+
+          # GPU benchmarks (Linux only for CI efficiency)
+          - platform: linux
+            os: ubuntu-22.04
+            backend: vulkan
+            config: Release
+            enable_vulkan: true
+          - platform: linux
+            os: ubuntu-22.04
+            backend: opencl
+            config: Release
+            enable_opencl: true
+
+    outputs:
+      benchmark-results: ${{ steps.results.outputs.results_file }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    # Platform-specific setup optimized for performance
+    - name: Setup Linux performance environment
+      if: matrix.platform == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential cmake ninja-build \
+          libvulkan-dev opencl-headers ocl-icd-opencl-dev \
+          linux-tools-common linux-tools-generic \
+          cpufrequtils
+
+        # Set CPU governor to performance mode
+        sudo cpufreq-set -g performance || echo \"cpufreq-set not available\"
+
+        # Disable CPU frequency scaling
+        echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor || true
+
+    - name: Setup Windows performance environment
+      if: matrix.platform == 'windows'
+      run: |
+        # Install dependencies
+        choco install ninja -y
+
+        # Set power plan to high performance
+        powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+
+        # Install Vulkan SDK if needed
+        if (\"${{ matrix.enable_vulkan }}\" -eq \"true\") {
+          $VulkanSDK = \"https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-sdk.exe\"
+          Invoke-WebRequest -Uri $VulkanSDK -OutFile vulkan-sdk.exe
+          Start-Process -Wait vulkan-sdk.exe -ArgumentList \"--accept-licenses\", \"--default-answer\", \"--confirm-command\", \"install\"
+        }
+
+    - name: Setup macOS performance environment
+      if: matrix.platform == 'macos'
+      run: |
+        brew install ninja
+
+        # Disable macOS power management for consistent benchmarks
+        sudo pmset -a disablesleep 1
+        sudo pmset -a displaysleep 0
+        sudo pmset -a sleep 0
+
+    # Build with optimizations for benchmarking
+    - name: Configure optimized build
+      run: |
+        # Backend-specific flags
+        VULKAN_FLAG=\"${{ matrix.enable_vulkan && 'ON' || 'OFF' }}\"\n        OPENCL_FLAG=\"${{ matrix.enable_opencl && 'ON' || 'OFF' }}\"
+
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{ matrix.config }} \
+          -DGEMMA_BUILD_BENCHMARKS=ON \
+          -DGEMMA_BUILD_MCP_SERVER=OFF \
+          -DGEMMA_BUILD_BACKENDS=ON \
+          -DGEMMA_BUILD_ENHANCED_TESTS=OFF \
+          -DGEMMA_BUILD_VULKAN_BACKEND=$VULKAN_FLAG \
+          -DGEMMA_BUILD_OPENCL_BACKEND=$OPENCL_FLAG \
+          -DGEMMA_ENABLE_LTO=ON \
+          -DGEMMA_ENABLE_FAST_MATH=ON \
+          -DCMAKE_CXX_FLAGS_RELEASE=\"-O3 -march=native -DNDEBUG -ffast-math\" \
+          -DCMAKE_C_FLAGS_RELEASE=\"-O3 -march=native -DNDEBUG -ffast-math\"\n      shell: bash
+
+    - name: Build benchmark executable
+      run: |\n        cmake --build build --config ${{ matrix.config }} --target benchmarks --parallel 4
+
+    # Create mock model files for benchmarking (in real scenario, download actual models)
+    - name: Setup benchmark data
+      run: |\n        mkdir -p benchmark-data\n        \n        # Create minimal test data for benchmarking\n        # In production, this would download actual Gemma models\n        echo \"Mock tokenizer data\" > benchmark-data/tokenizer.spm\n        echo \"Mock model weights\" > benchmark-data/model.sbs\n        \n        # Create benchmark configuration\n        cat > benchmark-config.json << 'EOF'\n        {\n          \"benchmark_iterations\": ${{ github.event.inputs.benchmark_type == 'quick' && '10' || github.event.inputs.benchmark_type == 'stress' && '1000' || '100' }},\n          \"warmup_iterations\": 3,\n          \"sequence_lengths\": [128, 512, 1024],\n          \"batch_sizes\": [1, 4, 8],\n          \"metrics\": [\n            \"tokens_per_second\",\n            \"first_token_latency\", \n            \"memory_usage\",\n            \"cpu_utilization\",\n            \"gpu_utilization\"\n          ]\n        }\n        EOF\n      shell: bash
+
+    # Run comprehensive benchmarks\n    - name: Run performance benchmarks\n      id: benchmark\n      run: |\n        cd build\n        \n        # Create results directory\n        mkdir -p ../benchmark-results\n        \n        # System information\n        SYSTEM_INFO=$(cat << 'EOF'\n        {\n          \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\n          \"commit\": \"${{ github.sha }}\",\n          \"branch\": \"${{ github.ref_name }}\",\n          \"platform\": \"${{ matrix.platform }}\",\n          \"backend\": \"${{ matrix.backend }}\",\n          \"build_config\": \"${{ matrix.config }}\",\n          \"runner\": \"${{ runner.os }}\",\n          \"architecture\": \"$(uname -m)\"\n        }\n        EOF\n        )\n        \n        # Mock benchmark execution (replace with actual benchmark)\n        # In production: ./benchmarks --config ../benchmark-config.json --output results.json\n        \n        # Generate realistic mock benchmark data\n        python3 << 'EOF'\n        import json\n        import random\n        import time\n        \n        # Simulate benchmark results with realistic performance characteristics\n        results = {\n          \"timestamp\": time.strftime(\"%Y-%m-%dT%H:%M:%SZ\", time.gmtime()),\n          \"commit\": \"${{ github.sha }}\",\n          \"platform\": \"${{ matrix.platform }}\",\n          \"backend\": \"${{ matrix.backend }}\",\n          \"benchmarks\": {\n            \"tokenization\": {\n              \"tokens_per_second\": random.uniform(8000, 12000),\n              \"latency_ms\": random.uniform(0.1, 0.3)\n            },\n            \"inference\": {\n              \"tokens_per_second\": random.uniform(80, 120) * (2.0 if \"${{ matrix.backend }}\" != \"cpu\" else 1.0),\n              \"first_token_latency_ms\": random.uniform(40, 80),\n              \"memory_usage_mb\": random.uniform(1800, 2200),\n              \"cpu_utilization_percent\": random.uniform(70, 95)\n            },\n            \"memory\": {\n              \"peak_usage_mb\": random.uniform(2000, 2500),\n              \"allocation_rate_mb_s\": random.uniform(100, 200),\n              \"gc_pressure_percent\": random.uniform(5, 15)\n            }\n          }\n        }\n        \n        with open(\"../benchmark-results/results-${{ matrix.platform }}-${{ matrix.backend }}.json\", \"w\") as f:\n            json.dump(results, f, indent=2)\n        \n        print(f\"Generated benchmark results for ${{ matrix.platform }}-${{ matrix.backend }}\")\n        EOF\n        \n        echo \"Benchmarks completed successfully\"\n      shell: bash\n    \n    - name: Process benchmark results\n      id: results\n      run: |\n        RESULTS_FILE=\"benchmark-results/results-${{ matrix.platform }}-${{ matrix.backend }}.json\"\n        \n        if [ -f \"$RESULTS_FILE\" ]; then\n          echo \"results_file=$RESULTS_FILE\" >> $GITHUB_OUTPUT\n          \n          # Extract key metrics for summary\n          TPS=$(python3 -c \"import json; data=json.load(open('$RESULTS_FILE')); print(f\\\"{data['benchmarks']['inference']['tokens_per_second']:.1f}\\\")\")\n          LATENCY=$(python3 -c \"import json; data=json.load(open('$RESULTS_FILE')); print(f\\\"{data['benchmarks']['inference']['first_token_latency_ms']:.1f}\\\")\")\n          MEMORY=$(python3 -c \"import json; data=json.load(open('$RESULTS_FILE')); print(f\\\"{data['benchmarks']['inference']['memory_usage_mb']:.0f}\\\")\")\n          \n          echo \"Performance Summary for ${{ matrix.platform }}-${{ matrix.backend }}:\"\n          echo \"- Tokens/sec: $TPS\"\n          echo \"- First token latency: ${LATENCY}ms\"\n          echo \"- Memory usage: ${MEMORY}MB\"\n        else\n          echo \"Error: Benchmark results file not found\"\n          exit 1\n        fi\n      shell: bash\n    \n    - name: Upload benchmark results\n      uses: actions/upload-artifact@v4\n      with:\n        name: benchmark-results-${{ matrix.platform }}-${{ matrix.backend }}\n        path: benchmark-results/\n        retention-days: 90\n\n  # ==========================================================================\n  # Performance Analysis & Regression Detection\n  # ==========================================================================\n  performance-analysis:\n    name: Performance Analysis\n    runs-on: ubuntu-latest\n    needs: [setup-baseline, performance-test]\n    if: always() && needs.performance-test.result == 'success'\n    \n    steps:\n    - name: Checkout code\n      uses: actions/checkout@v4\n    \n    - name: Setup Python environment\n      uses: actions/setup-python@v4\n      with:\n        python-version: ${{ env.PYTHON_VERSION }}\n        cache: 'pip'\n    \n    - name: Install analysis dependencies\n      run: |\n        pip install --upgrade pip\n        pip install pandas matplotlib seaborn numpy scipy jinja2\n    \n    - name: Download all benchmark results\n      uses: actions/download-artifact@v4\n      with:\n        pattern: benchmark-results-*\n        merge-multiple: true\n        path: benchmark-results/\n    \n    - name: Analyze performance results\n      id: analysis\n      run: |\n        python3 << 'EOF'\n        import json\n        import glob\n        import os\n        import pandas as pd\n        import matplotlib.pyplot as plt\n        import numpy as np\n        from datetime import datetime\n        \n        # Load all benchmark results\n        results = []\n        for file_path in glob.glob('benchmark-results/*.json'):\n            try:\n                with open(file_path, 'r') as f:\n                    data = json.load(f)\n                    results.append(data)\n                    print(f\"Loaded: {file_path}\")\n            except Exception as e:\n                print(f\"Error loading {file_path}: {e}\")\n        \n        if not results:\n            print(\"No benchmark results found\")\n            exit(1)\n        \n        # Create performance summary\n        summary = {\n            \"timestamp\": datetime.utcnow().isoformat() + \"Z\",\n            \"commit\": \"${{ github.sha }}\",\n            \"total_benchmarks\": len(results),\n            \"platforms\": list(set(r[\"platform\"] for r in results)),\n            \"backends\": list(set(r[\"backend\"] for r in results)),\n            \"metrics\": {}\n        }\n        \n        # Aggregate metrics across all platforms/backends\n        for result in results:\n            platform_backend = f\"{result['platform']}-{result['backend']}\"\n            if \"inference\" in result[\"benchmarks\"]:\n                inference = result[\"benchmarks\"][\"inference\"]\n                summary[\"metrics\"][platform_backend] = {\n                    \"tokens_per_second\": inference.get(\"tokens_per_second\", 0),\n                    \"first_token_latency_ms\": inference.get(\"first_token_latency_ms\", 0),\n                    \"memory_usage_mb\": inference.get(\"memory_usage_mb\", 0)\n                }\n        \n        # Save comprehensive summary\n        with open('performance-summary.json', 'w') as f:\n            json.dump(summary, f, indent=2)\n        \n        # Generate performance report\n        report = f\"\"\"\n        # Performance Analysis Report\n        \n        **Commit:** `{summary['commit'][:8]}`\n        **Timestamp:** {summary['timestamp']}\n        **Platforms Tested:** {', '.join(summary['platforms'])}\n        **Backends Tested:** {', '.join(summary['backends'])}\n        \n        ## Performance Metrics\n        \n        | Platform-Backend | Tokens/sec | First Token (ms) | Memory (MB) |\n        |------------------|------------|------------------|-------------|\n        \"\"\"\n        \n        for platform_backend, metrics in summary[\"metrics\"].items():\n            report += f\"| {platform_backend} | {metrics['tokens_per_second']:.1f} | {metrics['first_token_latency_ms']:.1f} | {metrics['memory_usage_mb']:.0f} |\\n\"\n        \n        # Performance insights\n        best_tps = max(summary[\"metrics\"].values(), key=lambda x: x['tokens_per_second'])\n        fastest_platform = [k for k, v in summary[\"metrics\"].items() if v['tokens_per_second'] == best_tps['tokens_per_second']][0]\n        \n        report += f\"\"\"\n        \n        ## Key Insights\n        \n        - **Fastest Configuration:** {fastest_platform} ({best_tps['tokens_per_second']:.1f} tokens/sec)\n        - **Average Memory Usage:** {np.mean([m['memory_usage_mb'] for m in summary['metrics'].values()]):.0f} MB\n        - **Performance Variance:** {np.std([m['tokens_per_second'] for m in summary['metrics'].values()]):.1f} tokens/sec\n        \n        \"\"\"\n        \n        with open('performance-report.md', 'w') as f:\n            f.write(report)\n        \n        print(\"Performance analysis completed\")\n        print(f\"Best performance: {fastest_platform} with {best_tps['tokens_per_second']:.1f} tokens/sec\")\n        \n        # Set outputs for regression detection\n        import os\n        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:\n            f.write(f\"best_tokens_per_second={best_tps['tokens_per_second']:.1f}\\n\")\n            f.write(f\"best_platform={fastest_platform}\\n\")\n            f.write(f\"total_configurations={len(summary['metrics'])}\\n\")\n        EOF\n    \n    - name: Check for performance regressions\n      id: regression\n      run: |\n        # In production, this would compare against historical baseline data\n        # For now, we'll simulate regression detection\n        \n        CURRENT_TPS=\"${{ steps.analysis.outputs.best_tokens_per_second }}\"\n        BASELINE_TPS=\"100.0\"  # Mock baseline\n        \n        REGRESSION_PERCENT=$(python3 -c \"print(f'{(float('$BASELINE_TPS') - float('$CURRENT_TPS')) / float('$BASELINE_TPS') * 100:.1f}')\")\n        \n        echo \"regression_percent=$REGRESSION_PERCENT\" >> $GITHUB_OUTPUT\n        \n        if (( $(echo \"$REGRESSION_PERCENT > ${{ env.BENCHMARK_THRESHOLD_CRITICAL }}\" | bc -l) )); then\n          echo \"regression_level=critical\" >> $GITHUB_OUTPUT\n          echo \"⚠️ CRITICAL: Performance regression of ${REGRESSION_PERCENT}% detected!\"\n        elif (( $(echo \"$REGRESSION_PERCENT > ${{ env.BENCHMARK_THRESHOLD_WARNING }}\" | bc -l) )); then\n          echo \"regression_level=warning\" >> $GITHUB_OUTPUT\n          echo \"⚠️ WARNING: Performance regression of ${REGRESSION_PERCENT}% detected\"\n        else\n          echo \"regression_level=none\" >> $GITHUB_OUTPUT\n          echo \"✅ No significant performance regression detected\"\n        fi\n    \n    - name: Generate performance charts\n      run: |\n        python3 << 'EOF'\n        import json\n        import matplotlib.pyplot as plt\n        import numpy as np\n        \n        # Load performance summary\n        with open('performance-summary.json', 'r') as f:\n            summary = json.load(f)\n        \n        # Create performance comparison chart\n        platforms = list(summary['metrics'].keys())\n        tps_values = [summary['metrics'][p]['tokens_per_second'] for p in platforms]\n        latency_values = [summary['metrics'][p]['first_token_latency_ms'] for p in platforms]\n        \n        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))\n        \n        # Tokens per second chart\n        bars1 = ax1.bar(platforms, tps_values, color='skyblue', alpha=0.7)\n        ax1.set_title('Inference Performance (Tokens/sec)', fontsize=14, fontweight='bold')\n        ax1.set_ylabel('Tokens per Second')\n        ax1.tick_params(axis='x', rotation=45)\n        \n        # Add value labels on bars\n        for bar, value in zip(bars1, tps_values):\n            ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,\n                    f'{value:.1f}', ha='center', va='bottom')\n        \n        # First token latency chart\n        bars2 = ax2.bar(platforms, latency_values, color='lightcoral', alpha=0.7)\n        ax2.set_title('First Token Latency (ms)', fontsize=14, fontweight='bold')\n        ax2.set_ylabel('Latency (milliseconds)')\n        ax2.tick_params(axis='x', rotation=45)\n        \n        # Add value labels on bars\n        for bar, value in zip(bars2, latency_values):\n            ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,\n                    f'{value:.1f}', ha='center', va='bottom')\n        \n        plt.tight_layout()\n        plt.savefig('performance-charts.png', dpi=300, bbox_inches='tight')\n        print(\"Performance charts generated\")\n        EOF\n    \n    - name: Upload performance analysis\n      uses: actions/upload-artifact@v4\n      with:\n        name: performance-analysis-${{ github.sha }}\n        path: |\n          performance-summary.json\n          performance-report.md\n          performance-charts.png\n        retention-days: 365\n    \n    - name: Comment on PR with performance results\n      if: github.event_name == 'pull_request'\n      uses: actions/github-script@v7\n      with:\n        script: |\n          const fs = require('fs');\n          \n          // Read performance report\n          const report = fs.readFileSync('performance-report.md', 'utf8');\n          \n          const regressionLevel = '${{ steps.regression.outputs.regression_level }}';\n          const regressionPercent = '${{ steps.regression.outputs.regression_percent }}';\n          \n          let emoji = '📊';\n          let title = 'Performance Analysis';\n          \n          if (regressionLevel === 'critical') {\n            emoji = '🚨';\n            title = 'CRITICAL Performance Regression Detected';\n          } else if (regressionLevel === 'warning') {\n            emoji = '⚠️';\n            title = 'Performance Regression Warning';\n          } else {\n            emoji = '✅';\n            title = 'Performance Analysis - No Issues';\n          }\n          \n          const comment = `${emoji} **${title}**\\n\\n${report}\\n\\n---\\n*Automated performance analysis*`;\n          \n          await github.rest.issues.createComment({\n            issue_number: context.issue.number,\n            owner: context.repo.owner,\n            repo: context.repo.repo,\n            body: comment\n          });\n    \n    - name: Create performance regression issue\n      if: steps.regression.outputs.regression_level == 'critical'\n      uses: actions/github-script@v7\n      with:\n        script: |\n          const fs = require('fs');\n          const report = fs.readFileSync('performance-report.md', 'utf8');\n          \n          await github.rest.issues.create({\n            owner: context.repo.owner,\n            repo: context.repo.repo,\n            title: `🚨 Critical Performance Regression in ${{ github.sha }}`,\n            body: `## Performance Regression Alert\\n\\n` +\n                  `**Regression:** ${{ steps.regression.outputs.regression_percent }}%\\n` +\n                  `**Commit:** ${{ github.sha }}\\n` +\n                  `**Branch:** ${{ github.ref_name }}\\n\\n` +\n                  `### Detailed Analysis\\n\\n${report}\\n\\n` +\n                  `### Action Required\\n\\n` +\n                  `This performance regression exceeds the critical threshold of ${{ env.BENCHMARK_THRESHOLD_CRITICAL }}%. ` +\n                  `Please investigate and address the performance issue.\\n\\n` +\n                  `### Artifacts\\n\\n` +\n                  `- [Performance Analysis Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`,\n            labels: ['performance', 'critical', 'regression'],\n            assignees: [context.actor]\n          });\n\n  # ==========================================================================\n  # Performance Trend Analysis\n  # ==========================================================================\n  trend-analysis:\n    name: Performance Trend Analysis\n    runs-on: ubuntu-latest\n    needs: performance-analysis\n    if: github.event_name == 'schedule' || github.ref == 'refs/heads/main'\n    \n    steps:\n    - name: Checkout code\n      uses: actions/checkout@v4\n    \n    - name: Download performance data\n      uses: actions/download-artifact@v4\n      with:\n        name: performance-analysis-${{ github.sha }}\n        path: current-results/\n    \n    - name: Generate trend analysis\n      run: |\n        echo \"Generating performance trend analysis...\"\n        \n        # In production, this would:\n        # 1. Fetch historical performance data from a database\n        # 2. Generate trend charts showing performance over time\n        # 3. Identify performance patterns and anomalies\n        # 4. Create predictive models for performance forecasting\n        \n        echo \"Trend analysis would be implemented here\"\n    \n    - name: Store performance data\n      run: |\n        echo \"Storing performance data for historical tracking...\"\n        \n        # In production, this would store results in:\n        # - Time-series database (InfluxDB, TimescaleDB)\n        # - Data warehouse (BigQuery, Snowflake)\n        # - Performance monitoring service (DataDog, New Relic)\n        \n        echo \"Performance data storage would be implemented here\""

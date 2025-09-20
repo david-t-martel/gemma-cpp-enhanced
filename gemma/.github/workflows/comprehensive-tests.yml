@@ -1,0 +1,288 @@
+name: Comprehensive Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run performance benchmarks daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  BUILD_TYPE: Release
+  CCACHE_COMPRESS: true
+  CCACHE_COMPRESSLEVEL: 6
+  CCACHE_MAXSIZE: 2G
+
+jobs:
+  # Unit Tests - Fast feedback
+  unit-tests:
+    name: Unit Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-12]
+        include:
+          - os: ubuntu-22.04
+            generator: "Unix Makefiles"
+            preset: "make"
+          - os: windows-2022
+            generator: "Visual Studio 17 2022"
+            preset: "windows"
+          - os: macos-12
+            generator: "Unix Makefiles"
+            preset: "make"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup ccache (Linux/macOS)
+      if: runner.os != 'Windows'
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ matrix.os }}-unit
+
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-22.04'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build
+
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-12'
+      run: |
+        brew install ninja
+
+    - name: Configure CMake
+      working-directory: gemma.cpp
+      run: |
+        cmake --preset ${{ matrix.preset }} \
+          -DGEMMA_ENABLE_ENHANCED_TESTS=ON \
+          -DGEMMA_ENABLE_TESTS=ON \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+    - name: Build
+      working-directory: gemma.cpp
+      run: cmake --build --preset ${{ matrix.preset }} --target test_gemma_core --parallel 4
+
+    - name: Run Unit Tests
+      working-directory: gemma.cpp
+      run: ctest --test-dir build -L "unit" --output-on-failure --parallel 4
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: unit-test-results-${{ matrix.os }}
+        path: gemma.cpp/build/Testing/
+
+  # Integration Tests - More comprehensive
+  integration-tests:
+    name: Integration Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: unit-tests
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+        include:
+          - os: ubuntu-22.04
+            preset: "make"
+          - os: windows-2022
+            preset: "windows"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup ccache (Linux)
+      if: runner.os == 'Linux'
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ matrix.os }}-integration
+
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-22.04'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build
+
+    - name: Configure CMake
+      working-directory: gemma.cpp
+      run: |
+        cmake --preset ${{ matrix.preset }} \
+          -DGEMMA_ENABLE_ENHANCED_TESTS=ON \
+          -DGEMMA_ENABLE_TESTS=ON \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+    - name: Build Integration Tests
+      working-directory: gemma.cpp
+      run: |
+        cmake --build --preset ${{ matrix.preset }} \
+          --target test_backends_integration \
+          --target test_model_loading_integration \
+          --parallel 4
+
+    - name: Run Integration Tests
+      working-directory: gemma.cpp
+      run: ctest --test-dir build -L "integration" --output-on-failure --parallel 2
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-test-results-${{ matrix.os }}
+        path: gemma.cpp/build/Testing/
+
+  # Performance Benchmarks - Resource intensive
+  performance-tests:
+    name: Performance Benchmarks
+    runs-on: ubuntu-22.04
+    needs: [unit-tests, integration-tests]
+    if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[benchmark]')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ubuntu-performance
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build
+
+    - name: Configure CMake (Release with optimizations)
+      working-directory: gemma.cpp
+      run: |
+        cmake --preset make \
+          -DGEMMA_ENABLE_ENHANCED_TESTS=ON \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_CXX_FLAGS="-O3 -march=native -DNDEBUG"
+
+    - name: Build Performance Tests
+      working-directory: gemma.cpp
+      run: |
+        cmake --build --preset make \
+          --target benchmark_inference \
+          --parallel 4
+
+    - name: Run Performance Benchmarks
+      working-directory: gemma.cpp
+      run: |
+        # Create baseline if it doesn't exist
+        if [ ! -f baseline_results.json ]; then
+          echo "Creating performance baseline..."
+          ./build/benchmark_inference \
+            --benchmark_out=baseline_results.json \
+            --benchmark_out_format=json \
+            --benchmark_min_time=0.1
+        fi
+
+        # Run current benchmarks
+        ./build/benchmark_inference \
+          --benchmark_out=current_results.json \
+          --benchmark_out_format=json \
+          --benchmark_min_time=0.1
+
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-results
+        path: |
+          gemma.cpp/baseline_results.json
+          gemma.cpp/current_results.json
+
+  # Code Coverage (Linux only)
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-22.04
+    needs: unit-tests
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build lcov
+
+    - name: Configure CMake (Debug with coverage)
+      working-directory: gemma.cpp
+      run: |
+        cmake --preset make \
+          -DGEMMA_ENABLE_ENHANCED_TESTS=ON \
+          -DGEMMA_ENABLE_TESTS=ON \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_CXX_FLAGS="--coverage -g -O0"
+
+    - name: Build with coverage
+      working-directory: gemma.cpp
+      run: cmake --build --preset make --parallel 4
+
+    - name: Run tests
+      working-directory: gemma.cpp
+      run: ctest --test-dir build --output-on-failure --parallel 4
+
+    - name: Generate coverage report
+      working-directory: gemma.cpp
+      run: |
+        lcov --capture --directory . --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' '*/build/*' '*/tests/*' --output-file coverage.info
+        lcov --list coverage.info
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: gemma.cpp/coverage.info
+        flags: unittests
+        name: codecov-umbrella
+
+  # Test Summary
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: always()
+
+    steps:
+    - name: Download test results
+      uses: actions/download-artifact@v4
+      with:
+        pattern: "*-test-results-*"
+        merge-multiple: true
+
+    - name: Generate test summary
+      run: |
+        echo "# Test Results Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ needs.unit-tests.result }}" == "success" ]; then
+          echo "✅ Unit Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Unit Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "${{ needs.integration-tests.result }}" == "success" ]; then
+          echo "✅ Integration Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Integration Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "For detailed results, check the individual job logs and artifacts." >> $GITHUB_STEP_SUMMARY

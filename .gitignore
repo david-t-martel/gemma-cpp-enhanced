@@ -143,3 +143,11 @@ htmlcov/
 mcp-data/
 temp/
 tmp/
+
+logs
+.idea
+.vscode
+
+# Task files
+# tasks.json
+# tasks/ 

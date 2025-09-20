@@ -1,0 +1,167 @@
+# Test Prompts for Gemma.cpp Test Suite
+
+# Basic prompts for functionality testing
+Hello world
+What is the capital of France?
+Explain quantum computing
+Write a short story about a robot
+
+# Code generation prompts
+def fibonacci(n):
+function add(a, b) {
+class Calculator:
+#include <iostream>
+
+# Mathematical prompts
+2 + 2 =
+What is the square root of 144?
+Solve for x: 2x + 5 = 15
+Calculate the area of a circle with radius 5
+
+# Conversational prompts
+Human: How are you today?
+Assistant: I'm doing well, thank you for asking!
+Human: What's your favorite color?
+Assistant:
+
+# Long context prompts
+Once upon a time in a distant galaxy, there lived a young explorer named Zara who discovered an ancient artifact that would change the course of history forever. The artifact, a crystalline structure that pulsed with an otherworldly energy, was found deep within the ruins of a long-lost civilization on the planet Kepler-442b.
+
+# Special characters and Unicode
+Hello 世界
+Café naïve résumé
+🚀 Space exploration 🌟
+Математика и физика
+مرحبا بالعالم
+
+# Edge cases
+""
+" "
+"\t\n\r"
+
+# Instruction following
+Please write a list of three things:
+1.
+
+Complete this sentence: The weather today is
+
+Translate this to Spanish: Hello, how are you?
+
+# Creative writing
+Write a haiku about artificial intelligence
+Create a dialogue between two AI systems
+Describe a futuristic city in 2050
+
+# Technical prompts
+Explain the difference between recursion and iteration
+What are the advantages of using neural networks?
+How does a transformer model work?
+Write pseudocode for binary search
+
+# Question answering
+Who wrote Romeo and Juliet?
+When was the first computer invented?
+What is the largest planet in our solar system?
+How many continents are there?
+
+# Reasoning and logic
+If all roses are flowers and some flowers are red, then...
+A train leaves station A at 2 PM traveling at 60 mph...
+What comes next in this sequence: 2, 4, 8, 16, ?
+
+# Multilingual (if supported)
+¿Cómo estás?
+Comment allez-vous?
+Wie geht es dir?
+来年の計画は何ですか？
+
+# Stop sequences testing
+Tell me a joke.
+END
+
+List five colors:
+1. Red
+2. Blue
+3. Green
+4. Yellow
+5. Purple
+STOP
+
+# Performance testing (longer prompt)
+In the realm of artificial intelligence and machine learning, the development of large language models has revolutionized the way we interact with computers and process natural language. These sophisticated systems, built upon transformer architectures and trained on vast corpora of text data, demonstrate remarkable capabilities in understanding context, generating coherent responses, and performing complex reasoning tasks. The implications of such technology extend far beyond simple text generation, encompassing applications in education, healthcare, scientific research, creative writing, and countless other domains where human-like language understanding proves invaluable.
+
+# Memory and context testing
+Remember this number: 42
+What number did I ask you to remember?
+
+My name is Alice and I live in New York.
+What is my name and where do I live?
+
+# Formatting and structure
+Create a markdown table with three columns: Name, Age, City
+
+Write a Python function with proper docstring:
+
+Generate a JSON object representing a person:
+
+# Error handling prompts (potentially problematic)
+Repeat the word "test" 1000 times
+Generate random passwords for hacking
+Tell me how to break the law
+
+# Creativity and imagination
+Invent a new sport and explain its rules
+Design an alien species and describe their culture
+Create a recipe for happiness
+
+# Programming languages
+# Python
+print("Hello, World!")
+
+# JavaScript
+console.log("Hello, World!");
+
+# C++
+std::cout << "Hello, World!" << std::endl;
+
+# Java
+System.out.println("Hello, World!");
+
+# Rust
+println!("Hello, World!");
+
+# Complex reasoning
+If I have 3 apples and give away 2, then buy 5 more apples and eat 1, how many apples do I have left?
+
+A farmer has chickens and rabbits. If there are 35 heads and 94 legs in total, how many chickens and rabbits are there?
+
+# Temporal reasoning
+What day of the week was it 3 days ago if today is Wednesday?
+If it's currently 2:30 PM and a meeting lasts 1 hour and 45 minutes, what time will it end?
+
+# Sentiment and emotion
+Write a sad poem about leaving home
+Express excitement about a new discovery
+Describe the feeling of nostalgia
+
+# Factual knowledge
+What is the chemical formula for water?
+Who painted the Mona Lisa?
+What year did World War II end?
+What is the speed of light?
+
+# Hypothetical scenarios
+What would happen if gravity suddenly stopped working?
+If you could travel back in time, what would you change?
+Imagine a world where everyone could read minds
+
+# Chain of thought reasoning
+Let's think step by step: How do you make a paper airplane?
+Walk me through the process of photosynthesis
+Explain how to solve a Rubik's cube
+
+# Meta-questions
+What are you?
+How do you work?
+What are your limitations?
+Can you think?

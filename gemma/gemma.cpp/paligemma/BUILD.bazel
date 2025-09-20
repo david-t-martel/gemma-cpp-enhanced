@@ -1,0 +1,70 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(
+    default_applicable_licenses = [
+        "//:license",  # Placeholder comment, do not modify
+    ],
+    # Placeholder for internal compatible_with
+    default_visibility = [
+        "//:__subpackages__",
+    ],
+)
+
+cc_library(
+    name = "image",
+    srcs = ["image.cc"],
+    hdrs = ["image.h"],
+    deps = [
+        "//io",
+        "@highway//:hwy",
+        "@highway//:profiler",
+    ],
+)
+
+cc_test(
+    name = "image_test",
+    srcs = ["image_test.cc"],
+    data = ["testdata/image.ppm"],
+    deps = [
+        ":image",
+        "@googletest//:gtest_main",  # buildcleaner: keep
+    ],
+)
+
+cc_library(
+    name = "paligemma_helper",
+    srcs = ["paligemma_helper.cc"],
+    hdrs = ["paligemma_helper.h"],
+    deps = [
+        "//:allocator",
+        "//:benchmark_helper",
+        "//:configs",
+        "//:gemma_args",
+        "//:gemma_lib",
+        "//compression:types",
+        "@highway//:hwy",
+    ],
+)
+
+cc_test(
+    name = "paligemma_test",
+    srcs = ["paligemma_test.cc"],
+    linkstatic = True,
+    # Requires model files
+    tags = [
+        "local",
+        "manual",
+        "no_tap",
+    ],
+    deps = [
+        ":paligemma_helper",
+        "@googletest//:gtest_main",  # buildcleaner: keep
+        "//:allocator",
+        "//:benchmark_helper",
+        "//:configs",
+        "//:gemma_lib",
+        "//io",
+        "@highway//:hwy_test_util",
+    ],
+)

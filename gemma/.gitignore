@@ -1,0 +1,152 @@
+gemma.cpp/build*/
+gemma.cpp/nul
+
+# Explicitly include .github (overrides user/global ignore that hides it)
+!/.github/
+
+# -----------------------------
+# Added ignore patterns (2025-09-17)
+# -----------------------------
+
+# CMake bundled distribution docs (very large, regenerated / downloadable)
+gemma.cpp/cmake-*/
+
+# Local build/test byproducts (root-level helpers that may appear)
+build/
+dist/
+*.cache/
+
+# Python artifacts
+__pycache__/
+*.pyc
+
+# Logs & profiling output
+*.log
+server.log
+
+# Temporary / backup / scratch
+*.backup
+run_gemma.bat.backup
+temp_file.bat
+*.tmp
+*.swp
+*.swo
+
+# Editor / IDE metadata
+.vscode/
+.idea/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# AI assistant context / transient tooling
+.claude/
+
+# Model weights & large ML artifacts (do NOT commit weights/tokenizers)
+*.sbs
+*.spm
+*.gguf
+*.pt
+*.pth
+*.onnx
+
+# Binary build outputs (comment out if intentionally tracked)
+*.exe
+*.dll
+*.pdb
+*.lib
+*.so
+*.dylib
+
+# Archive bundles
+*.tar
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Coverage / test reports
+coverage/
+*.lcov
+
+# Wheel / packaging
+*.whl
+*.egg-info/
+
+# Node (if any JS tooling is introduced later)
+node_modules/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Optional: uncomment to ignore all local scripts starting with temp_
+# temp_*
+
+# -----------------------------
+# Enhanced Gemma.cpp ignore patterns
+# -----------------------------
+
+# New component build outputs
+mcp/build/
+backends/build/
+tests/build/
+
+# MCP server runtime files
+mcp/logs/
+mcp/config/local_*.json
+mcp/temp/
+mcp/pid/
+
+# Backend-specific files
+backends/cuda/ptx/
+backends/opencl/kernels/*.bin
+backends/vulkan/spirv/
+backends/metal/*.metallib
+
+# Test artifacts
+tests/results/
+tests/coverage/
+tests/temp/
+tests/*.xml
+tests/*.json
+
+# Documentation build outputs
+docs/build/
+docs/html/
+docs/latex/
+docs/_build/
+
+# Performance profiling
+*.nvprof
+*.prof
+*.trace
+*.timeline
+
+# Hardware-specific cache files
+*.cubin
+*.fatbin
+*.cl_cache/
+
+# CMake enhanced build directories
+cmake-build-*/
+build-mcp-test/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# IDE project files
+*.vcxproj*
+*.sln
+*.pro
+*.xcworkspace/
+*.xcodeproj/
+
+# Package manager files
+conan*/
+vcpkg*/
+
+# Enhanced temporary files
+*.pid
+*.sock
+*.fifo

@@ -1,0 +1,248 @@
+# Ruff configuration for gemma.cpp enhanced project
+# Optimized for Python tooling, testing, and MCP server development
+
+# ==========================================================================
+# Basic Configuration
+# ==========================================================================
+target-version = "py310"
+line-length = 100
+indent-width = 4
+
+# ==========================================================================
+# File Discovery
+# ==========================================================================
+extend-exclude = [
+    "build/",
+    "build-*/",
+    "*_deps/",
+    "third_party/",
+    "*.generated.py",
+    "__pycache__/",
+    ".git/",
+    ".pytest_cache/",
+    ".ruff_cache/",
+    ".venv/",
+    "venv/",
+    "node_modules/",
+    "gemma.cpp/build*/",
+]
+
+include = ["*.py", "*.pyi", "**/pyproject.toml"]
+
+# ==========================================================================
+# Linting Rules
+# ==========================================================================
+[lint]
+# Enable comprehensive rule sets
+select = [
+    # Pyflakes
+    "F",
+    # pycodestyle errors
+    "E",
+    # pycodestyle warnings
+    "W",
+    # mccabe complexity
+    "C90",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pydocstyle
+    "D",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # flake8-comprehensions
+    "C4",
+    # flake8-pie
+    "PIE",
+    # flake8-pytest-style
+    "PT",
+    # flake8-return
+    "RET",
+    # flake8-use-pathlib
+    "PTH",
+    # pandas-vet
+    "PD",
+    # numpy-specific rules
+    "NPY",
+    # flake8-logging
+    "LOG",
+    # Security audit
+    "S",
+    # flake8-async
+    "ASYNC",
+    # tryceratops
+    "TRY",
+    # flake8-raise
+    "RSE",
+    # Ruff-specific rules
+    "RUF",
+]
+
+ignore = [
+    # Allow non-lowercase variable names (common in scientific computing)
+    "N806",
+    # Allow capital letters in variable names
+    "N815",
+    # Ignore missing docstrings in public modules/classes (for now)
+    "D100", "D101", "D102", "D103", "D104", "D105",
+    # Allow print statements (useful for debugging and CLI tools)
+    "T201",
+    # Allow assert statements (common in tests)
+    "S101",
+    # Allow subprocess without shell=False (when needed)
+    "S602",
+    # Allow hardcoded passwords in tests
+    "S105", "S106",
+    # Allow complex expressions in comprehensions
+    "C901",
+    # Allow nested if statements
+    "SIM102",
+    # Allow exception without explicit cause in re-raise
+    "TRY200",
+]
+
+# ==========================================================================
+# Rule-Specific Configuration
+# ==========================================================================
+
+[lint.per-file-ignores]
+# Test files can have additional relaxed rules
+"tests/**/*.py" = [
+    "D",      # No docstring requirements in tests
+    "S101",   # Allow assert statements
+    "PLR2004", # Allow magic value comparisons
+    "S105", "S106", # Allow hardcoded secrets in tests
+]
+
+# MCP server files (if any)
+"mcp/**/*.py" = [
+    "D100", "D101", "D102", # Relax docstring requirements for server code
+]
+
+# Scripts and tools
+"scripts/**/*.py" = [
+    "T201",   # Allow print statements in scripts
+    "S602",   # Allow subprocess usage
+]
+
+[lint.mccabe]
+# Maximum cyclomatic complexity
+max-complexity = 15
+
+[lint.pep8-naming]
+# Allow single-letter variable names in certain contexts
+extend-ignore-names = ["i", "j", "k", "x", "y", "z", "T", "N"]
+
+[lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+
+[lint.isort]
+# Import sorting configuration
+known-first-party = ["gemma", "mcp"]
+force-single-line = false
+force-sort-within-sections = true
+lines-after-imports = 2
+no-lines-before = ["future", "standard-library"]
+split-on-trailing-comma = true
+
+[lint.pydocstyle]
+# Docstring conventions
+convention = "google"
+ignore-decorators = ["typing.overload"]
+
+[lint.pyupgrade]
+# Keep trailing commas
+keep-runtime-typing = true
+
+# ==========================================================================
+# Formatting Configuration
+# ==========================================================================
+[format]
+# Formatting options
+quote-style = "double"
+indent-style = "space"
+skip-source-first-line = false
+line-ending = "auto"
+
+# String formatting
+docstring-code-format = true
+docstring-code-line-length = 88
+
+# ==========================================================================
+# Performance and AI-Specific Rules
+# ==========================================================================
+[lint.flake8-comprehensions]
+# Allow complex comprehensions for numerical computing
+allow-dict-calls-with-keyword-arguments = true
+
+[lint.pandas-vet]
+# Pandas-specific optimizations
+check-all = true
+
+# ==========================================================================
+# Security Configuration
+# ==========================================================================
+[lint.bandit]
+# Security check configuration
+check-typed-exception = true
+
+[lint.flake8-bandit]
+# Additional security rules
+check-typed-exception = true
+hardcoded-tmp-directory = true
+
+# ==========================================================================
+# Advanced Features
+# ==========================================================================
+
+# Automatic fixes
+fix = true
+show-fixes = true
+
+# Cache configuration
+cache-dir = ".ruff_cache"
+respect-gitignore = true
+
+# Performance tuning
+unsafe-fixes = false
+preview = false
+
+# ==========================================================================
+# Output and Reporting
+# ==========================================================================
+output-format = "grouped"
+show-source = true
+
+# GitHub Actions integration
+[lint.flake8-annotations]
+# Type annotation enforcement
+mypy-init-return = true
+suppress-dummy-args = true
+suppress-none-returning = true
+
+# ==========================================================================
+# Project-Specific Customizations
+# ==========================================================================
+
+# Machine learning and numerical computing patterns
+[lint.numpy]
+# NumPy-specific rules for scientific computing
+check-all = true
+
+# Async patterns for MCP servers
+[lint.flake8-async]
+check-all = true
+
+# Error handling patterns for inference engines
+[lint.tryceratops]
+check-all = true
+
+# Logging patterns for debugging
+[lint.flake8-logging]
+check-all = true

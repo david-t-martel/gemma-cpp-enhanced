@@ -1,0 +1,76 @@
+[package]
+name = "llm-rag-agent"
+version.workspace = true
+edition.workspace = true
+authors = ["LLM RAG Agent Development Team"]
+description = "LLM Agent with RAG-Redis backend for enhanced context retrieval"
+
+[dependencies]
+# Async runtime
+tokio.workspace = true
+async-trait = "0.1"
+
+# HTTP/WebSocket
+axum = { version = "0.7", features = ["ws", "macros"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "timeout"] }
+hyper = { version = "1.5", features = ["full"] }
+
+# LLM Integration
+reqwest = { version = "0.12", features = ["json", "stream"] }
+eventsource-stream = "0.2"
+futures = "0.3"
+futures-util = "0.3"
+
+# Serialization
+serde.workspace = true
+serde_json = "1.0"
+
+# Redis
+redis.workspace = true
+bb8 = "0.9"
+bb8-redis = "0.24"
+
+# Vector operations
+ndarray = "0.16"
+
+# Document processing
+tiktoken-rs = "0.6"
+pulldown-cmark = "0.12"
+scraper = "0.21"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Utils
+uuid.workspace = true
+chrono = { version = "0.4", features = ["serde"] }
+dashmap = "6.1"
+parking_lot = "0.12"
+once_cell = "1.20"
+bytes = "1.8"
+
+# CLI
+clap.workspace = true
+
+# Environment
+dotenv = "0.15"
+
+[dev-dependencies]
+tempfile = "3.14"
+mockall = "0.13"
+
+[[bin]]
+name = "llm-agent"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

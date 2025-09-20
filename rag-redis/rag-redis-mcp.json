@@ -1,0 +1,586 @@
+{
+  "mcpServers": {
+    "rag-redis": {
+      "command": "C:/codedev/llm/stats/rag-redis-system/mcp-server/target/release/mcp-server.exe",
+      "args": ["--config", "C:/codedev/llm/stats/rag-redis-config.json"],
+      "env": {
+        "RUST_LOG": "info",
+        "REDIS_URL": "redis://127.0.0.1:6379",
+        "RAG_DATA_DIR": "C:/codedev/llm/stats/data/rag",
+        "EMBEDDING_CACHE_DIR": "C:/codedev/llm/stats/cache/embeddings"
+      },
+      "autoStart": true,
+      "restartOnFailure": true,
+      "maxRestarts": 3,
+      "restartDelay": 1000
+    }
+  },
+  "tools": [
+    {
+      "name": "rag_ingest_document",
+      "description": "Ingest a document into the RAG system for vector search",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The document content to ingest"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Optional metadata for the document",
+            "properties": {
+              "title": {"type": "string"},
+              "source": {"type": "string"},
+              "tags": {"type": "array", "items": {"type": "string"}},
+              "timestamp": {"type": "string", "format": "date-time"}
+            }
+          },
+          "chunk_size": {
+            "type": "integer",
+            "description": "Size of text chunks (default: 512)",
+            "default": 512
+          },
+          "chunk_overlap": {
+            "type": "integer",
+            "description": "Overlap between chunks (default: 50)",
+            "default": 50
+          }
+        },
+        "required": ["content"]
+      }
+    },
+    {
+      "name": "rag_search",
+      "description": "Search for relevant documents using semantic similarity",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of results (default: 10)",
+            "default": 10
+          },
+          "threshold": {
+            "type": "number",
+            "description": "Minimum similarity threshold (0-1, default: 0.7)",
+            "default": 0.7
+          },
+          "filter": {
+            "type": "object",
+            "description": "Optional metadata filters",
+            "properties": {
+              "tags": {"type": "array", "items": {"type": "string"}},
+              "source": {"type": "string"},
+              "date_range": {
+                "type": "object",
+                "properties": {
+                  "start": {"type": "string", "format": "date-time"},
+                  "end": {"type": "string", "format": "date-time"}
+                }
+              }
+            }
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "rag_hybrid_search",
+      "description": "Perform hybrid search combining vector similarity and keyword matching",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query"
+          },
+          "vector_weight": {
+            "type": "number",
+            "description": "Weight for vector similarity (0-1, default: 0.7)",
+            "default": 0.7
+          },
+          "keyword_weight": {
+            "type": "number",
+            "description": "Weight for keyword matching (0-1, default: 0.3)",
+            "default": 0.3
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of results",
+            "default": 10
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "rag_research",
+      "description": "Research a topic using both local knowledge and external sources",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The research query"
+          },
+          "sources": {
+            "type": "array",
+            "description": "External sources to search",
+            "items": {
+              "type": "string",
+              "enum": ["web", "arxiv", "wikipedia", "github", "documentation"]
+            },
+            "default": ["web"]
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum results per source",
+            "default": 5
+          },
+          "combine_with_local": {
+            "type": "boolean",
+            "description": "Combine with local RAG search",
+            "default": true
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "rag_memory_store",
+      "description": "Store information in the agent's memory system",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The content to store"
+          },
+          "memory_type": {
+            "type": "string",
+            "description": "Type of memory",
+            "enum": ["short_term", "long_term", "episodic", "semantic", "working"],
+            "default": "short_term"
+          },
+          "importance": {
+            "type": "number",
+            "description": "Importance score (0-1)",
+            "default": 0.5
+          },
+          "ttl": {
+            "type": "integer",
+            "description": "Time to live in seconds (null for permanent)",
+            "default": null
+          },
+          "tags": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Tags for categorization"
+          }
+        },
+        "required": ["content"]
+      }
+    },
+    {
+      "name": "rag_memory_recall",
+      "description": "Recall information from the agent's memory",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "What to recall (optional, returns all if not specified)"
+          },
+          "memory_types": {
+            "type": "array",
+            "description": "Types of memory to search",
+            "items": {
+              "type": "string",
+              "enum": ["short_term", "long_term", "episodic", "semantic", "working"]
+            },
+            "default": ["all"]
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of memories to recall",
+            "default": 10
+          },
+          "min_importance": {
+            "type": "number",
+            "description": "Minimum importance threshold",
+            "default": 0.0
+          }
+        }
+      }
+    },
+    {
+      "name": "rag_batch_ingest",
+      "description": "Ingest multiple documents in batch",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "description": "Array of documents to ingest",
+            "items": {
+              "type": "object",
+              "properties": {
+                "content": {"type": "string"},
+                "metadata": {"type": "object"}
+              },
+              "required": ["content"]
+            }
+          },
+          "chunk_size": {
+            "type": "integer",
+            "default": 512
+          },
+          "chunk_overlap": {
+            "type": "integer",
+            "default": 50
+          },
+          "parallel": {
+            "type": "boolean",
+            "description": "Process documents in parallel",
+            "default": true
+          }
+        },
+        "required": ["documents"]
+      }
+    },
+    {
+      "name": "rag_get_document",
+      "description": "Retrieve a specific document by ID",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "The document ID"
+          },
+          "include_chunks": {
+            "type": "boolean",
+            "description": "Include document chunks",
+            "default": false
+          },
+          "include_embeddings": {
+            "type": "boolean",
+            "description": "Include embeddings",
+            "default": false
+          }
+        },
+        "required": ["document_id"]
+      }
+    },
+    {
+      "name": "rag_delete_document",
+      "description": "Delete a document from the RAG system",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "description": "The document ID to delete"
+          },
+          "delete_embeddings": {
+            "type": "boolean",
+            "description": "Also delete associated embeddings",
+            "default": true
+          }
+        },
+        "required": ["document_id"]
+      }
+    },
+    {
+      "name": "rag_list_documents",
+      "description": "List all documents in the RAG system",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of documents",
+            "default": 100
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset for pagination",
+            "default": 0
+          },
+          "filter": {
+            "type": "object",
+            "description": "Filter criteria",
+            "properties": {
+              "tags": {"type": "array", "items": {"type": "string"}},
+              "source": {"type": "string"},
+              "date_range": {
+                "type": "object",
+                "properties": {
+                  "start": {"type": "string", "format": "date-time"},
+                  "end": {"type": "string", "format": "date-time"}
+                }
+              }
+            }
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": ["created_at", "updated_at", "title", "relevance"],
+            "default": "created_at"
+          },
+          "sort_order": {
+            "type": "string",
+            "enum": ["asc", "desc"],
+            "default": "desc"
+          }
+        }
+      }
+    },
+    {
+      "name": "rag_clear_memory",
+      "description": "Clear specific types of memory",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "memory_types": {
+            "type": "array",
+            "description": "Types to clear (empty for all)",
+            "items": {
+              "type": "string",
+              "enum": ["short_term", "long_term", "episodic", "semantic", "working"]
+            },
+            "default": []
+          },
+          "older_than": {
+            "type": "string",
+            "description": "Clear memories older than this timestamp",
+            "format": "date-time"
+          },
+          "importance_below": {
+            "type": "number",
+            "description": "Clear memories with importance below this threshold"
+          }
+        }
+      }
+    },
+    {
+      "name": "rag_health_check",
+      "description": "Check the health status of the RAG system",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "verbose": {
+            "type": "boolean",
+            "description": "Include detailed component status",
+            "default": false
+          }
+        }
+      }
+    },
+    {
+      "name": "rag_get_metrics",
+      "description": "Get system metrics and statistics",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "include_performance": {
+            "type": "boolean",
+            "default": true
+          },
+          "include_usage": {
+            "type": "boolean",
+            "default": true
+          },
+          "include_errors": {
+            "type": "boolean",
+            "default": false
+          },
+          "time_range": {
+            "type": "object",
+            "properties": {
+              "start": {"type": "string", "format": "date-time"},
+              "end": {"type": "string", "format": "date-time"}
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "rag_configure",
+      "description": "Update RAG system configuration",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "embedding_model": {
+            "type": "string",
+            "enum": ["local", "openai", "cohere", "custom"],
+            "description": "Embedding model to use"
+          },
+          "chunk_size": {
+            "type": "integer",
+            "description": "Default chunk size"
+          },
+          "chunk_overlap": {
+            "type": "integer",
+            "description": "Default chunk overlap"
+          },
+          "similarity_threshold": {
+            "type": "number",
+            "description": "Default similarity threshold"
+          },
+          "cache_ttl": {
+            "type": "integer",
+            "description": "Cache TTL in seconds"
+          },
+          "max_memory_entries": {
+            "type": "object",
+            "description": "Maximum entries per memory type"
+          }
+        }
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "name": "rag_context_prompt",
+      "description": "Generate a context-aware prompt using RAG",
+      "arguments": [
+        {
+          "name": "query",
+          "description": "The user's query",
+          "required": true
+        },
+        {
+          "name": "context_limit",
+          "description": "Maximum context length",
+          "required": false,
+          "default": 2000
+        }
+      ]
+    },
+    {
+      "name": "rag_summary_prompt",
+      "description": "Generate a summary of retrieved documents",
+      "arguments": [
+        {
+          "name": "documents",
+          "description": "Documents to summarize",
+          "required": true
+        },
+        {
+          "name": "max_length",
+          "description": "Maximum summary length",
+          "required": false,
+          "default": 500
+        }
+      ]
+    },
+    {
+      "name": "rag_qa_prompt",
+      "description": "Generate a question-answering prompt with context",
+      "arguments": [
+        {
+          "name": "question",
+          "description": "The question to answer",
+          "required": true
+        },
+        {
+          "name": "context",
+          "description": "Retrieved context",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "uri": "rag://documents",
+      "name": "RAG Documents",
+      "description": "Access to all documents in the RAG system",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "rag://memory",
+      "name": "Agent Memory",
+      "description": "Access to the agent's memory system",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "rag://config",
+      "name": "RAG Configuration",
+      "description": "Current RAG system configuration",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "rag://metrics",
+      "name": "System Metrics",
+      "description": "Performance and usage metrics",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "rag://embeddings/cache",
+      "name": "Embedding Cache",
+      "description": "Cached embeddings for efficiency",
+      "mimeType": "application/json"
+    }
+  ],
+  "capabilities": {
+    "sampling": {
+      "enabled": true,
+      "defaultSampling": {
+        "temperature": 0.7,
+        "topP": 0.95,
+        "maxTokens": 2048
+      }
+    },
+    "streaming": {
+      "enabled": true,
+      "defaultChunkSize": 1024
+    },
+    "parallelExecution": {
+      "enabled": true,
+      "maxConcurrentTools": 5
+    },
+    "errorHandling": {
+      "retryOnFailure": true,
+      "maxRetries": 3,
+      "backoffMultiplier": 2
+    },
+    "caching": {
+      "enabled": true,
+      "ttl": 3600,
+      "maxSize": "1GB"
+    }
+  },
+  "security": {
+    "authentication": {
+      "enabled": false,
+      "type": "api_key",
+      "keyLocation": "env:RAG_API_KEY"
+    },
+    "rateLimit": {
+      "enabled": true,
+      "requestsPerMinute": 100,
+      "burstSize": 20
+    },
+    "allowedHosts": ["localhost", "127.0.0.1"],
+    "encryption": {
+      "enabled": true,
+      "tlsVersion": "1.3"
+    }
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "destination": "C:/codedev/llm/stats/logs/rag-mcp.log",
+    "rotation": {
+      "enabled": true,
+      "maxSize": "100MB",
+      "maxFiles": 10
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+      "major": 3,
+      "minor": 11,
+      "patch": 0
+    },
+    "configurePresets": [
+      {
+        "name": "__defaults__",
+        "hidden": true,
+        "binaryDir": "${sourceDir}/build"
+      },
+      {
+        "name": "make",
+        "inherits": "__defaults__",
+        "displayName": "Make",
+        "description": "Unix Makefiles",
+        "generator": "Unix Makefiles",
+        "binaryDir": "${sourceDir}/build"
+      },
+      {
+        "name": "windows",
+        "inherits": "__defaults__",
+        "displayName": "Windows",
+        "description": "Visual Studio 2022 with Clang/LLVM frontend",
+        "generator": "Visual Studio 17 2022",
+        "toolset": "ClangCL",
+        "condition": {
+          "type": "equals",
+          "lhs": "${hostSystemName}",
+          "rhs": "Windows"
+        }
+      },
+      {
+        "name": "windows-dll",
+        "inherits": "__defaults__",
+        "displayName": "Windows DLL",
+        "description": "Visual Studio 2022 with Clang/LLVM frontend (DLL build)",
+        "generator": "Visual Studio 17 2022",
+        "toolset": "ClangCL",
+        "condition": {
+          "type": "equals",
+          "lhs": "${hostSystemName}",
+          "rhs": "Windows"
+        },
+        "cacheVariables": {
+          "BUILD_SHARED_LIBS": "OFF",
+          "CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS": "ON",
+          "BUILD_GEMMA_DLL": "ON"
+        }
+      }
+    ],
+    "buildPresets": [
+      {
+        "name": "__defaults__",
+        "hidden": true,
+        "targets": [
+            "gemma",
+            "libgemma"
+        ]
+      },
+      {
+        "name": "make",
+        "inherits": "__defaults__",
+        "displayName": "Unix Makefiles",
+        "configurePreset": "make"
+      },
+      {
+        "name": "windows",
+        "inherits": "__defaults__",
+        "displayName": "Windows",
+        "configuration": "Release",
+        "configurePreset": "windows"
+      },
+      {
+        "name": "windows-dll",
+        "displayName": "Windows DLL",
+        "configuration": "Release",
+        "configurePreset": "windows-dll",
+        "targets": [
+            "gemma_shared"
+        ]
+      }
+    ]
+  }

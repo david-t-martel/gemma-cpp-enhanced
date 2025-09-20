@@ -1,0 +1,87 @@
+#version 450
+
+/**
+ * Softmax Activation Compute Shader
+ * Numerically stable implementation: f(x_i) = exp(x_i - max(x)) / Σ exp(x_j - max(x))
+ */
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) uniform UniformBuffer {
+    uint size;
+    uint dim_size;  // Size of each softmax dimension
+} ubo;
+
+layout(set = 0, binding = 1, std430) restrict readonly buffer InputBuffer {
+    float input_data[];
+};
+
+layout(set = 0, binding = 2, std430) restrict writeonly buffer OutputBuffer {
+    float output_data[];
+};
+
+// Shared memory for reductions
+shared float shared_data[256];
+
+void main() {
+    uint global_id = gl_GlobalInvocationID.x;
+    uint local_id = gl_LocalInvocationID.x;
+    uint group_id = gl_WorkGroupID.x;
+
+    // Calculate which softmax group this thread belongs to
+    uint group_start = group_id * ubo.dim_size;
+    uint group_end = min(group_start + ubo.dim_size, ubo.size);
+
+    if (global_id >= ubo.size) {
+        return;
+    }
+
+    // Phase 1: Find maximum value for numerical stability
+    float max_val = -1.0 / 0.0; // negative infinity
+
+    // Each thread processes multiple elements if dim_size > workgroup_size
+    for (uint i = group_start + local_id; i < group_end; i += gl_WorkGroupSize.x) {
+        max_val = max(max_val, input_data[i]);
+    }
+
+    // Store local max in shared memory
+    shared_data[local_id] = max_val;
+    barrier();
+
+    // Parallel reduction to find global max
+    for (uint stride = gl_WorkGroupSize.x / 2; stride > 0; stride >>= 1) {
+        if (local_id < stride) {
+            shared_data[local_id] = max(shared_data[local_id], shared_data[local_id + stride]);
+        }
+        barrier();
+    }
+
+    float global_max = shared_data[0];
+    barrier();
+
+    // Phase 2: Compute exponentials and sum
+    float sum = 0.0;
+    for (uint i = group_start + local_id; i < group_end; i += gl_WorkGroupSize.x) {
+        sum += exp(input_data[i] - global_max);
+    }
+
+    // Store local sum in shared memory
+    shared_data[local_id] = sum;
+    barrier();
+
+    // Parallel reduction to find total sum
+    for (uint stride = gl_WorkGroupSize.x / 2; stride > 0; stride >>= 1) {
+        if (local_id < stride) {
+            shared_data[local_id] += shared_data[local_id + stride];
+        }
+        barrier();
+    }
+
+    float total_sum = shared_data[0];
+    barrier();
+
+    // Phase 3: Compute final softmax values
+    for (uint i = group_start + local_id; i < group_end; i += gl_WorkGroupSize.x) {
+        output_data[i] = exp(input_data[i] - global_max) / total_sum;
+    }
+}

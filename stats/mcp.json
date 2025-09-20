@@ -1,0 +1,433 @@
+{
+  "mcpServers": {
+    "rag-redis": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "rag_redis_mcp.mcp_main", "--redis-url", "${env:REDIS_URL}", "--log-level", "error"],
+      "cwd": "C:/codedev/llm/rag-redis/python-bridge",
+      "transport": [
+        "stdio"
+      ],
+      "environment": {
+        "RUST_LOG": "info,rag_redis=debug",
+        "REDIS_URL": "redis://127.0.0.1:6380",
+        "REDIS_HOST": "127.0.0.1",
+        "REDIS_PORT": "6380",
+        "REDIS_DB": "0",
+        "REDIS_MAX_CONNECTIONS": "10",
+        "REDIS_CONNECTION_TIMEOUT": "5",
+        "REDIS_SOCKET_TIMEOUT": "10",
+        "REDIS_MAX_RETRIES": "3",
+        "REDIS_RETRY_DELAY_MS": "100",
+        "REDIS_ENABLE_FALLBACK": "true",
+        "REDIS_KEY_PREFIX": "llm_stats:",
+        "RAG_DATA_DIR": "C:/codedev/llm/rag-redis/data/rag",
+        "EMBEDDING_CACHE_DIR": "C:/codedev/llm/rag-redis/cache/embeddings",
+        "RUST_BINARY_PATH": "C:/codedev/llm/rag-redis/rag-binaries/bin/rag-server.exe"
+      },
+      "capabilities": [
+        "document_ingestion",
+        "semantic_search",
+        "memory_management",
+        "research_tool"
+      ]
+    }
+  },
+  "tools": [
+    {
+      "name": "ingest_document",
+      "description": "Ingest a document into the RAG system with comprehensive metadata support",
+      "version": "1.1.0",
+      "capabilities": [
+        "text_extraction",
+        "metadata_tagging",
+        "vector_embedding"
+      ],
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Full text content of the document",
+            "minLength": 1,
+            "maxLength": 1048576
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "description": "Origin of the document"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "language": {
+                "type": "string",
+                "description": "Language of the document"
+              }
+            }
+          },
+          "embedding_model": {
+            "type": "string",
+            "description": "Optional embedding model to use",
+            "default": "all-MiniLM-L6-v2"
+          }
+        },
+        "required": ["content"]
+      },
+      "errorHandling": {
+        "maxRetries": 3,
+        "retryDelay": 1000
+      }
+    },
+    {
+      "name": "search",
+      "description": "Semantic search across ingested documents with advanced filtering",
+      "version": "1.2.0",
+      "capabilities": [
+        "vector_search",
+        "hybrid_retrieval",
+        "relevance_ranking"
+      ],
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Natural language search query",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of results",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10
+          },
+          "threshold": {
+            "type": "number",
+            "description": "Similarity threshold for results",
+            "minimum": 0,
+            "maximum": 1,
+            "default": 0.7
+          },
+          "filter": {
+            "type": "object",
+            "description": "Optional filtering parameters",
+            "properties": {
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "start_date": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "end_date": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "hybrid_search",
+      "description": "Perform hybrid search combining vector similarity and keyword matching",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query"
+          },
+          "vector_weight": {
+            "type": "number",
+            "description": "Weight for vector similarity (0-1, default: 0.7)",
+            "default": 0.7
+          },
+          "keyword_weight": {
+            "type": "number",
+            "description": "Weight for keyword matching (0-1, default: 0.3)",
+            "default": 0.3
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of results",
+            "default": 10
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "research",
+      "description": "Research a topic using both local knowledge and external sources",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The research query"
+          },
+          "sources": {
+            "type": "array",
+            "description": "External sources to search",
+            "items": {
+              "type": "string",
+              "enum": ["web", "arxiv", "wikipedia", "github", "documentation"]
+            },
+            "default": ["web"]
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "Maximum results per source",
+            "default": 5
+          },
+          "combine_with_local": {
+            "type": "boolean",
+            "description": "Combine with local RAG search",
+            "default": true
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "memory_store",
+      "description": "Store information in the agent's memory system",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The content to store"
+          },
+          "memory_type": {
+            "type": "string",
+            "description": "Type of memory",
+            "enum": ["short_term", "long_term", "episodic", "semantic", "working"],
+            "default": "short_term"
+          },
+          "importance": {
+            "type": "number",
+            "description": "Importance score (0-1)",
+            "default": 0.5
+          },
+          "ttl": {
+            "type": "integer",
+            "description": "Time to live in seconds (null for permanent)",
+            "default": null
+          },
+          "tags": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Tags for categorization"
+          }
+        },
+        "required": ["content"]
+      }
+    },
+    {
+      "name": "memory_recall",
+      "description": "Recall information from the agent's memory",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "What to recall (optional, returns all if not specified)"
+          },
+          "memory_types": {
+            "type": "array",
+            "description": "Types of memory to search",
+            "items": {
+              "type": "string",
+              "enum": ["short_term", "long_term", "episodic", "semantic", "working"]
+            },
+            "default": ["all"]
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of memories to recall",
+            "default": 10
+          },
+          "min_importance": {
+            "type": "number",
+            "description": "Minimum importance threshold",
+            "default": 0.0
+          }
+        }
+      }
+    },
+    {
+      "name": "health_check",
+      "description": "Check the health status of the RAG system",
+      "inputSchema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "verbose": {
+            "type": "boolean",
+            "description": "Include detailed component status",
+            "default": false
+          }
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "uri": "rag://documents",
+      "name": "Ingested Documents",
+      "description": "Vector-embedded document repository",
+      "accessControl": {
+        "mode": "read_write",
+        "authentication": "token_based"
+      }
+    },
+    {
+      "uri": "rag://memories",
+      "name": "Context Memories",
+      "description": "Dynamic memory storage for contextual understanding",
+      "accessControl": {
+        "mode": "read_write",
+        "authentication": "token_based"
+      }
+    },
+    {
+      "uri": "rag://metrics",
+      "name": "System Metrics",
+      "description": "Performance and usage metrics",
+      "accessControl": {
+        "mode": "read_only",
+        "authentication": "token_based"
+      }
+    }
+  ],
+  "prompts": [
+    {
+      "name": "system_context_retrieval",
+      "description": "Retrieve contextually relevant system information",
+      "template": "Given the query '{query}', retrieve the most relevant system context with a minimum relevance threshold of 0.7."
+    }
+  ],
+  "performance": {
+    "caching": {
+      "embedding_cache": {
+        "enabled": true,
+        "max_size": 10000,
+        "eviction_policy": "least_recently_used"
+      },
+      "query_cache": {
+        "enabled": true,
+        "max_size": 1000,
+        "ttl": 3600
+      }
+    },
+    "search": {
+      "max_concurrent_searches": 5,
+      "default_timeout_ms": 5000
+    }
+  },
+  "logging": {
+    "level": "info",
+    "formats": ["json", "human_readable"],
+    "destinations": [
+      "stdout",
+      "file://C:/codedev/llm/rag-redis/logs/rag-redis-mcp.log"
+    ]
+  },
+  "monitoring": {
+    "metrics": [
+      "document_count",
+      "search_latency",
+      "embedding_cache_hit_rate",
+      "total_memory_usage"
+    ],
+    "health_checks": {
+      "redis_connection": {
+        "interval_ms": 30000,
+        "timeout_ms": 5000
+      },
+      "embedding_model_availability": {
+        "interval_ms": 60000
+      }
+    }
+  },
+  "configuration": {
+    "redis": {
+      "host": "${env:REDIS_HOST:-localhost}",
+      "port": "${env:REDIS_PORT:-6380}",
+      "db": "${env:REDIS_DB:-0}",
+      "connection_pool": {
+        "max_connections": "${env:REDIS_MAX_CONNECTIONS:-10}",
+        "timeout_ms": "${env:REDIS_CONNECTION_TIMEOUT:-3000}",
+        "socket_timeout_ms": "${env:REDIS_SOCKET_TIMEOUT:-10000}",
+        "retry_on_timeout": true,
+        "health_check_interval_ms": 30000
+      },
+      "retry": {
+        "max_retries": "${env:REDIS_MAX_RETRIES:-3}",
+        "retry_delay_ms": "${env:REDIS_RETRY_DELAY_MS:-100}",
+        "exponential_backoff": true
+      },
+      "fallback": {
+        "enabled": "${env:REDIS_ENABLE_FALLBACK:-true}",
+        "type": "memory",
+        "max_entries": 1000,
+        "ttl_seconds": 300
+      }
+    },
+    "embedding": {
+      "providers": [
+        {
+          "name": "local",
+          "model": "all-MiniLM-L6-v2",
+          "type": "sentence_transformer"
+        },
+        {
+          "name": "openai",
+          "model": "text-embedding-ada-002",
+          "type": "remote"
+        }
+      ],
+      "default_provider": "local"
+    },
+    "memory_management": {
+      "max_short_term_memories": 100,
+      "max_long_term_memories": 10000,
+      "consolidation_interval_seconds": 3600,
+      "importance_decay_factor": 0.9
+    }
+  },
+  "security": {
+    "authentication": {
+      "mode": "token_based",
+      "providers": ["jwt", "oauth2"],
+      "token_expiration_minutes": 60
+    },
+    "rate_limiting": {
+      "max_requests_per_minute": 100,
+      "burst_limit": 50
+    }
+  }
+}

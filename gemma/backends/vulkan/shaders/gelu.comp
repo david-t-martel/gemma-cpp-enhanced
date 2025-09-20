@@ -1,0 +1,39 @@
+#version 450
+
+/**
+ * GELU Activation Compute Shader
+ * Gaussian Error Linear Unit: f(x) = x * Φ(x)
+ * Approximation: f(x) ≈ 0.5 * x * (1 + tanh(√(2/π) * (x + 0.044715 * x³)))
+ */
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) uniform UniformBuffer {
+    uint size;
+} ubo;
+
+layout(set = 0, binding = 1, std430) restrict readonly buffer InputBuffer {
+    float input_data[];
+};
+
+layout(set = 0, binding = 2, std430) restrict writeonly buffer OutputBuffer {
+    float output_data[];
+};
+
+// Mathematical constants for GELU approximation
+const float SQRT_2_PI = 0.7978845608; // sqrt(2/pi)
+const float GELU_COEFF = 0.044715;
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+
+    if (index >= ubo.size) {
+        return;
+    }
+
+    float x = input_data[index];
+    float x_cubed = x * x * x;
+    float inner = SQRT_2_PI * (x + GELU_COEFF * x_cubed);
+
+    output_data[index] = 0.5 * x * (1.0 + tanh(inner));
+}

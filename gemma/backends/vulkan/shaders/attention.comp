@@ -1,0 +1,142 @@
+#version 450
+
+/**
+ * Multi-Head Attention Compute Shader
+ * Performs scaled dot-product attention: Attention(Q,K,V) = softmax(QK^T/√d_k)V
+ *
+ * Layout:
+ * - Q: [batch_size, num_heads, seq_len, head_dim] queries
+ * - K: [batch_size, num_heads, seq_len, head_dim] keys
+ * - V: [batch_size, num_heads, seq_len, head_dim] values
+ * - O: [batch_size, num_heads, seq_len, head_dim] output
+ */
+
+// Workgroup size optimized for attention computation
+layout(local_size_x = 16, local_size_y = 4, local_size_z = 1) in;
+
+// Uniform buffer for parameters
+layout(set = 0, binding = 0) uniform UniformBuffer {
+    uint batch_size;
+    uint seq_len;
+    uint head_dim;
+    uint num_heads;
+    float scale;     // 1.0 / sqrt(head_dim)
+} ubo;
+
+// Storage buffers for attention matrices
+layout(set = 0, binding = 1, std430) restrict readonly buffer QueryBuffer {
+    float Q[];
+};
+
+layout(set = 0, binding = 2, std430) restrict readonly buffer KeyBuffer {
+    float K[];
+};
+
+layout(set = 0, binding = 3, std430) restrict readonly buffer ValueBuffer {
+    float V[];
+};
+
+layout(set = 0, binding = 4, std430) restrict writeonly buffer OutputBuffer {
+    float O[];
+};
+
+// Temporary buffer for attention scores (allocated externally)
+layout(set = 0, binding = 5, std430) restrict buffer AttentionScores {
+    float scores[];
+};
+
+// Shared memory for efficient computation
+shared float sdata[16 * 4];
+
+// Helper function to get matrix index
+uint getIndex(uint batch, uint head, uint seq, uint dim) {
+    return batch * ubo.num_heads * ubo.seq_len * ubo.head_dim +
+           head * ubo.seq_len * ubo.head_dim +
+           seq * ubo.head_dim +
+           dim;
+}
+
+// Helper function to get attention score index
+uint getScoreIndex(uint batch, uint head, uint seq_q, uint seq_k) {
+    return batch * ubo.num_heads * ubo.seq_len * ubo.seq_len +
+           head * ubo.seq_len * ubo.seq_len +
+           seq_q * ubo.seq_len +
+           seq_k;
+}
+
+void main() {
+    uint seq_idx = gl_GlobalInvocationID.x;
+    uint head_idx = gl_GlobalInvocationID.y;
+    uint batch_idx = gl_GlobalInvocationID.z;
+
+    // Check bounds
+    if (seq_idx >= ubo.seq_len || head_idx >= ubo.num_heads || batch_idx >= ubo.batch_size) {
+        return;
+    }
+
+    uint local_seq = gl_LocalInvocationID.x;
+    uint local_head = gl_LocalInvocationID.y;
+    uint local_idx = local_head * 16 + local_seq;
+
+    // Phase 1: Compute attention scores (QK^T)
+    for (uint k_seq = 0; k_seq < ubo.seq_len; ++k_seq) {
+        float score = 0.0;
+
+        // Compute dot product between query and key
+        for (uint d = 0; d < ubo.head_dim; ++d) {
+            uint q_idx = getIndex(batch_idx, head_idx, seq_idx, d);
+            uint k_idx = getIndex(batch_idx, head_idx, k_seq, d);
+            score += Q[q_idx] * K[k_idx];
+        }
+
+        // Apply scaling
+        score *= ubo.scale;
+
+        // Store attention score
+        uint score_idx = getScoreIndex(batch_idx, head_idx, seq_idx, k_seq);
+        scores[score_idx] = score;
+    }
+
+    // Synchronize to ensure all scores are computed
+    barrier();
+
+    // Phase 2: Apply softmax to attention scores
+    // First, find the maximum score for numerical stability
+    float max_score = -1.0 / 0.0; // negative infinity
+    for (uint k_seq = 0; k_seq < ubo.seq_len; ++k_seq) {
+        uint score_idx = getScoreIndex(batch_idx, head_idx, seq_idx, k_seq);
+        max_score = max(max_score, scores[score_idx]);
+    }
+
+    // Compute exponentials and sum
+    float sum_exp = 0.0;
+    for (uint k_seq = 0; k_seq < ubo.seq_len; ++k_seq) {
+        uint score_idx = getScoreIndex(batch_idx, head_idx, seq_idx, k_seq);
+        scores[score_idx] = exp(scores[score_idx] - max_score);
+        sum_exp += scores[score_idx];
+    }
+
+    // Normalize to get probabilities
+    for (uint k_seq = 0; k_seq < ubo.seq_len; ++k_seq) {
+        uint score_idx = getScoreIndex(batch_idx, head_idx, seq_idx, k_seq);
+        scores[score_idx] /= sum_exp;
+    }
+
+    // Synchronize before value computation
+    barrier();
+
+    // Phase 3: Compute weighted sum of values
+    for (uint d = 0; d < ubo.head_dim; ++d) {
+        float output_val = 0.0;
+
+        for (uint k_seq = 0; k_seq < ubo.seq_len; ++k_seq) {
+            uint score_idx = getScoreIndex(batch_idx, head_idx, seq_idx, k_seq);
+            uint v_idx = getIndex(batch_idx, head_idx, k_seq, d);
+            output_val += scores[score_idx] * V[v_idx];
+        }
+
+        // Store output
+        uint o_idx = getIndex(batch_idx, head_idx, seq_idx, d);
+        O[o_idx] = output_val;
+    }
+}

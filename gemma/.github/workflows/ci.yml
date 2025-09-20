@@ -1,0 +1,434 @@
+name: Enhanced Gemma.cpp CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'feature/*' ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+        - Release
+        - Debug
+        - RelWithDebInfo
+      enable_cuda:
+        description: 'Enable CUDA backend'
+        required: false
+        default: false
+        type: boolean
+      enable_sycl:
+        description: 'Enable SYCL backend'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  BUILD_TYPE: ${{ github.event.inputs.build_type || 'Release' }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================================================
+  # Pre-flight Checks
+  # ==========================================================================
+  preflight:
+    name: Pre-flight Checks
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.changes.outputs.should_build }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Check for changes
+      id: changes
+      uses: dorny/paths-filter@v2
+      with:
+        filters: |
+          should_build:
+            - 'CMakeLists.txt'
+            - 'gemma.cpp/**'
+            - 'backends/**'
+            - 'mcp/**'
+            - 'tests/**'
+            - '.github/workflows/**'
+    
+    - name: Generate version
+      id: version
+      run: |
+        if [[ "${{ github.event_name }}" == "release" ]]; then
+          VERSION=${{ github.event.release.tag_name }}
+        else
+          VERSION="dev-$(git rev-parse --short HEAD)"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $VERSION"
+
+  # ==========================================================================
+  # Multi-Platform Build Matrix
+  # ==========================================================================
+  build:
+    name: Build (${{ matrix.os }}, ${{ matrix.backends }})
+    runs-on: ${{ matrix.os }}
+    needs: preflight
+    if: needs.preflight.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-13]
+        backends: ['cpu-only', 'vulkan', 'opencl']
+        include:
+          # CUDA builds (Linux and Windows only)
+          - os: ubuntu-22.04
+            backends: 'cuda'
+            enable_cuda: true
+          - os: windows-2022
+            backends: 'cuda'
+            enable_cuda: true
+          # SYCL builds (Linux and Windows only)
+          - os: ubuntu-22.04
+            backends: 'sycl'
+            enable_sycl: true
+          - os: windows-2022
+            backends: 'sycl'
+            enable_sycl: true
+          # All backends (Linux only for complexity management)
+          - os: ubuntu-22.04
+            backends: 'all'
+            enable_cuda: true
+            enable_sycl: true
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    # Platform-specific setup
+    - name: Setup Linux dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential cmake ninja-build \
+          libvulkan-dev vulkan-tools \
+          opencl-headers ocl-icd-opencl-dev
+    
+    - name: Setup Windows dependencies
+      if: runner.os == 'Windows'
+      run: |
+        choco install ninja
+        # Vulkan SDK
+        $VulkanSDK = "https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-sdk.exe"
+        Invoke-WebRequest -Uri $VulkanSDK -OutFile vulkan-sdk.exe
+        Start-Process -Wait vulkan-sdk.exe -ArgumentList "--accept-licenses", "--default-answer", "--confirm-command", "install"
+    
+    - name: Setup macOS dependencies
+      if: runner.os == 'macOS'
+      run: |
+        brew install ninja
+        # MoltenVK for Vulkan support on macOS
+        brew install molten-vk
+    
+    # CUDA setup
+    - name: Setup CUDA (Linux)
+      if: matrix.enable_cuda && runner.os == 'Linux'
+      uses: Jimver/cuda-toolkit@v0.2.11
+      with:
+        cuda: '12.0'
+        method: 'network'
+        non-cuda-sub-packages: '["libcublas-dev"]'
+    
+    - name: Setup CUDA (Windows)
+      if: matrix.enable_cuda && runner.os == 'Windows'
+      uses: Jimver/cuda-toolkit@v0.2.11
+      with:
+        cuda: '12.0'
+        method: 'network'
+    
+    # Intel oneAPI setup
+    - name: Setup Intel oneAPI (Linux)
+      if: matrix.enable_sycl && runner.os == 'Linux'
+      run: |
+        wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+        echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+        sudo apt-get update
+        sudo apt-get install -y intel-oneapi-dpcpp-cpp-compiler
+        source /opt/intel/oneapi/setvars.sh
+    
+    - name: Setup Intel oneAPI (Windows)
+      if: matrix.enable_sycl && runner.os == 'Windows'
+      run: |
+        $oneAPIUrl = "https://registrationcenter-download.intel.com/akdlm/irc_nas/18236/w_dpcpp-cpp-compiler_p_2022.0.0.3658_offline.exe"
+        Invoke-WebRequest -Uri $oneAPIUrl -OutFile oneapi-installer.exe
+        Start-Process -Wait oneapi-installer.exe -ArgumentList "--silent", "--accept-eula"
+        & "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+    
+    # Build configuration
+    - name: Configure build
+      run: |
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+          -DGEMMA_BUILD_MCP_SERVER=ON \
+          -DGEMMA_BUILD_BACKENDS=ON \
+          -DGEMMA_BUILD_ENHANCED_TESTS=ON \
+          -DGEMMA_BUILD_BENCHMARKS=ON \
+          -DGEMMA_AUTO_DETECT_BACKENDS=ON \
+          -DGEMMA_BUILD_CUDA_BACKEND=${{ matrix.enable_cuda && 'ON' || 'OFF' }} \
+          -DGEMMA_BUILD_SYCL_BACKEND=${{ matrix.enable_sycl && 'ON' || 'OFF' }} \
+          -DGEMMA_BUILD_VULKAN_BACKEND=${{ contains(matrix.backends, 'vulkan') && 'ON' || 'OFF' }} \
+          -DGEMMA_BUILD_OPENCL_BACKEND=${{ contains(matrix.backends, 'opencl') && 'ON' || 'OFF' }}
+    
+    - name: Build project
+      run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel 4
+    
+    - name: Run tests
+      run: |
+        cd build
+        ctest --output-on-failure --parallel 4 -C ${{ env.BUILD_TYPE }}
+    
+    # Package artifacts
+    - name: Package artifacts (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        $artifactName = "gemma-cpp-enhanced-${{ needs.preflight.outputs.version }}-windows-${{ matrix.backends }}"
+        mkdir $artifactName
+        
+        # Copy executables
+        Copy-Item "build\Release\*.exe" $artifactName -ErrorAction SilentlyContinue
+        
+        # Copy libraries
+        mkdir "$artifactName\backends" -ErrorAction SilentlyContinue
+        Copy-Item "build\backends\*\Release\*.lib" "$artifactName\backends\" -Recurse -ErrorAction SilentlyContinue
+        
+        # Create archive
+        Compress-Archive -Path $artifactName -DestinationPath "$artifactName.zip"
+    
+    - name: Package artifacts (Linux/macOS)
+      if: runner.os != 'Windows'
+      run: |
+        ARTIFACT_NAME="gemma-cpp-enhanced-${{ needs.preflight.outputs.version }}-${{ runner.os }}-${{ matrix.backends }}"
+        mkdir -p $ARTIFACT_NAME
+        
+        # Copy executables
+        find build -name "gemma*" -type f -executable -exec cp {} $ARTIFACT_NAME/ \; 2>/dev/null || true
+        
+        # Copy libraries
+        mkdir -p $ARTIFACT_NAME/backends
+        find build/backends -name "*.so" -o -name "*.a" -o -name "*.dylib" | xargs -I {} cp {} $ARTIFACT_NAME/backends/ 2>/dev/null || true
+        
+        # Create archive
+        tar -czf $ARTIFACT_NAME.tar.gz $ARTIFACT_NAME
+    
+    - name: Upload artifacts (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: gemma-cpp-enhanced-${{ needs.preflight.outputs.version }}-windows-${{ matrix.backends }}
+        path: gemma-cpp-enhanced-${{ needs.preflight.outputs.version }}-windows-${{ matrix.backends }}.zip
+        retention-days: 30
+    
+    - name: Upload artifacts (Linux/macOS)
+      if: runner.os != 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: gemma-cpp-enhanced-${{ needs.preflight.outputs.version }}-${{ runner.os }}-${{ matrix.backends }}
+        path: gemma-cpp-enhanced-${{ needs.preflight.outputs.version }}-${{ runner.os }}-${{ matrix.backends }}.tar.gz
+        retention-days: 30
+
+  # ==========================================================================
+  # Docker Build
+  # ==========================================================================
+  docker:
+    name: Docker Build (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    needs: [preflight, build]
+    if: needs.preflight.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
+    
+    strategy:
+      matrix:
+        variant:
+          - { name: 'cpu-only', cuda: false, sycl: false }
+          - { name: 'cuda', cuda: true, sycl: false }
+          - { name: 'sycl', cuda: false, sycl: true }
+          - { name: 'all-backends', cuda: true, sycl: true }
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to Container Registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch,suffix=-${{ matrix.variant.name }}
+          type=ref,event=pr,suffix=-${{ matrix.variant.name }}
+          type=semver,pattern={{version}},suffix=-${{ matrix.variant.name }}
+          type=semver,pattern={{major}}.{{minor}},suffix=-${{ matrix.variant.name }}
+          type=raw,value=latest,suffix=-${{ matrix.variant.name }},enable={{is_default_branch}}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        build-args: |
+          BUILD_TYPE=${{ env.BUILD_TYPE }}
+          ENABLE_CUDA=${{ matrix.variant.cuda }}
+          ENABLE_SYCL=${{ matrix.variant.sycl }}
+          ENABLE_VULKAN=true
+          ENABLE_OPENCL=true
+          ENABLE_MCP_SERVER=true
+          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          VCS_REF=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # ==========================================================================
+  # Performance Benchmarks
+  # ==========================================================================
+  benchmark:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    needs: [preflight, build]
+    if: needs.preflight.outputs.should_build == 'true' && github.event_name != 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake ninja-build
+    
+    - name: Configure build
+      run: |
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DGEMMA_BUILD_BENCHMARKS=ON
+    
+    - name: Build benchmarks
+      run: cmake --build build --target benchmarks --parallel 4
+    
+    - name: Run benchmarks
+      run: |
+        # Note: This would need actual model files to run
+        echo "Benchmark infrastructure ready"
+        echo "Would run: ./build/benchmarks --benchmark_format=json"
+    
+    - name: Upload benchmark results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: benchmark-results.json
+        retention-days: 90
+
+  # ==========================================================================
+  # Security Scan
+  # ==========================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: needs.preflight.outputs.should_build == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # ==========================================================================
+  # Release
+  # ==========================================================================
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [preflight, build, docker]
+    if: github.event_name == 'release'
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    
+    - name: Create release archives
+      run: |
+        cd artifacts
+        for dir in */; do
+          if [[ "$dir" == *"windows"* ]]; then
+            echo "Windows artifact: $dir"
+          else
+            echo "Unix artifact: $dir"
+          fi
+        done
+    
+    - name: Upload release assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: artifacts/**/*
+        generate_release_notes: true
+        make_latest: true
+
+  # ==========================================================================
+  # Cleanup
+  # ==========================================================================
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [build, docker, benchmark, security]
+    if: always()
+    
+    steps:
+    - name: Delete old artifacts
+      uses: geekyeggo/delete-artifact@v2
+      with:
+        name: |
+          gemma-cpp-enhanced-dev-*
+        failOnError: false

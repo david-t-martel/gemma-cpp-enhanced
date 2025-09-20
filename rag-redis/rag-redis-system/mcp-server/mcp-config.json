@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "rag-redis": {
+      "command": "cargo",
+      "args": ["run", "--release", "--bin", "rag-redis-mcp-server"],
+      "cwd": "C:/codedev/llm/stats/rag-redis-system/mcp-server",
+      "env": {
+        "RUST_LOG": "info",
+        "REDIS_URL": "redis://localhost:6379"
+      }
+    }
+  }
+}
