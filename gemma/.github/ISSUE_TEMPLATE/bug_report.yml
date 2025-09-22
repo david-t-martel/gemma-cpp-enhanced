@@ -1,0 +1,193 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[BUG] "
+labels: ["bug", "needs-triage"]
+projects: ["david-t-martel/1"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please provide as much detail as possible.
+
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Search for existing issues
+      description: Please search for existing issues before creating a new one
+      options:
+        - label: I have searched for existing issues
+          required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component is affected?
+      options:
+        - Core Gemma engine (gemma.cpp)
+        - MCP server
+        - CUDA backend
+        - SYCL backend
+        - Vulkan backend
+        - Testing framework
+        - Build system
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this bug?
+      options:
+        - Critical (system crash, data loss)
+        - High (major functionality broken)
+        - Medium (feature partially working)
+        - Low (minor issue, workaround available)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the behavior
+      placeholder: |
+        1. Configure with '...'
+        2. Run command '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+      placeholder: Describe what should happen...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened
+      placeholder: Describe what actually happened...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Which platform(s) are affected?
+      multiple: true
+      options:
+        - Linux (Ubuntu)
+        - Linux (Other)
+        - Windows 10
+        - Windows 11
+        - macOS
+        - WSL
+    validations:
+      required: true
+
+  - type: dropdown
+    id: compiler
+    attributes:
+      label: Compiler
+      description: Which compiler are you using?
+      multiple: true
+      options:
+        - GCC 11
+        - GCC 12
+        - GCC 13
+        - Clang 14
+        - Clang 15
+        - Clang 16
+        - MSVC 2022
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What version of the software are you using?
+      placeholder: "v1.0.0 or commit hash"
+    validations:
+      required: true
+
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware Information
+      description: Relevant hardware information
+      placeholder: |
+        CPU: Intel i7-12700K
+        GPU: NVIDIA RTX 4060 (if using GPU backends)
+        RAM: 32GB
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs
+      description: Relevant log output (please use code blocks)
+      placeholder: |
+        ```
+        Paste error logs here
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Relevant configuration files or build settings
+      placeholder: |
+        CMake configuration:
+        ```
+        cmake -B build -DGEMMA_BUILD_TESTS=ON
+        ```
+
+        Model files:
+        - tokenizer.spm
+        - gemma2-2b-it-sfp.sbs
+    validations:
+      required: false
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround
+      description: Any workaround you've found
+      placeholder: Describe any temporary workaround...
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem
+      placeholder: Add any other context, screenshots, or files...
+    validations:
+      required: false
