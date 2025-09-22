@@ -1,0 +1,54 @@
+# [internal] load strict.bzl
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
+
+package(
+    default_applicable_licenses = [
+        "//:license",  # Placeholder comment, do not modify
+    ],
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "compression_clif_aux",
+    srcs = ["compression_clif_aux.cc"],
+    hdrs = ["compression_clif_aux.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//:basics",
+        "//:configs",
+        "//:mat",
+        "//:model_store",
+        "//:tensor_info",
+        "//:threading_context",
+        "//:tokenizer",
+        "//compression:compress",
+        "//io",
+        "//io:blob_store",
+        "@highway//:hwy",
+        "@highway//:thread_pool",
+    ],
+)
+
+pybind_extension(
+    name = "compression",
+    srcs = ["compression_extension.cc"],
+    deps = [
+        ":compression_clif_aux",
+        "//:mat",
+        "//:tensor_info",
+        "//compression:types",
+    ],
+)
+
+# py_strict
+py_test(
+    name = "compression_test",
+    srcs = ["compression_test.py"],
+    deps = [
+        ":compression",
+        "@com_google_absl_py//absl/testing:absltest",
+        "//python:configs",
+        "@compression_deps//numpy",
+    ],
+)

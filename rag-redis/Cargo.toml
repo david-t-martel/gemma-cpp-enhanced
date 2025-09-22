@@ -1,0 +1,225 @@
+[workspace]
+members = [
+    "rag-redis-system",
+    "rag-binaries",
+    "rust-rag-extensions",
+]
+exclude = [
+    "rag-redis-system/mcp-native",
+    "rag-redis-system/mcp-server", 
+    "rag-redis-system/standalone_demo",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["RAG-Redis Development Team"]
+license = "MIT"
+repository = "https://github.com/david-t-martel/llm-stats"
+homepage = "https://github.com/david-t-martel/llm-stats"
+rust-version = "1.75.0"
+
+[workspace.dependencies]
+# Core async runtime and concurrency
+tokio = { version = "1.45", features = ["full"] }
+tokio-util = { version = "0.7", features = ["full"] }
+async-trait = "0.1"
+futures = "0.3"
+futures-util = "0.3"
+rayon = "1.10"
+crossbeam = "0.8"
+crossbeam-channel = "0.5"
+crossbeam-utils = "0.8"
+parking_lot = "0.12"
+dashmap = "6.1"
+
+# Redis integration
+redis = { version = "0.32", features = ["aio", "tokio-comp", "connection-manager", "json", "cluster-async"] }
+bb8 = "0.9"
+bb8-redis = "0.24"
+
+# HTTP server and networking
+axum = { version = "0.7", features = ["macros", "multipart", "ws"] }
+axum-extra = { version = "0.9", features = ["typed-header"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["full"] }
+hyper = { version = "1.5", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "stream", "gzip", "brotli", "rustls-tls"] }
+
+# Serialization and data formats
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+rmp-serde = "1.3"
+postcard = { version = "1.0", features = ["alloc"] }
+
+# CLI framework
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Math and ML operations
+ndarray = { version = "0.16", features = ["rayon", "serde"] }
+ndarray-linalg = "0.16"
+num-traits = "0.2"
+num-complex = "0.4"
+nalgebra = { version = "0.33", features = ["serde-serialize"] }
+candle-core = "0.9.1"
+candle-nn = "0.9.1"
+candle-transformers = "0.9.1"
+
+# Vector operations and similarity search
+hnsw = "0.11"
+simsimd = "5.4"
+faiss = "0.12"
+
+# Document processing and text
+tiktoken-rs = "0.6"
+pulldown-cmark = "0.12"
+scraper = "0.21"
+pdf-extract = "0.7"
+tantivy = "0.22"
+regex = "1.10"
+unicode-segmentation = "1.10"
+
+# Tokenization
+tokenizers = "0.15"
+
+# Error handling and logging
+anyhow = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# Utilities
+uuid = { version = "1.11", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+url = "2.5"
+once_cell = "1.20"
+bytes = "1.8"
+md5 = "0.7"
+flate2 = "1.0"
+zstd = "0.13"
+lz4 = "1.28.1"
+lz4_flex = "0.11"
+base64 = "0.22"
+
+# Performance and SIMD optimizations
+wide = "0.7"
+bytemuck = { version = "1.16", features = ["derive"] }
+memchr = "2.7"
+smallvec = "1.13"
+tinyvec = { version = "1.6", features = ["alloc"] }
+ahash = "0.8"
+fnv = "1.0"
+
+# Memory management and allocation
+bumpalo = { version = "3.14", features = ["collections"] }
+typed-arena = "2.0"
+lru = "0.12"
+
+# PyO3 for Python bindings (optional for extensions)
+pyo3 = { version = "0.24.1", features = ["extension-module", "abi3-py311"] }
+
+# Configuration and environment
+config = "0.14"
+toml = "0.8"
+dotenv = "0.15"
+
+# Web-related
+eventsource-stream = "0.2"
+urlencoding = "2.1"
+
+# Rate limiting and governance
+governor = "0.7"
+nonzero_ext = "0.3"
+
+# FFI
+libc = "0.2"
+cbindgen = "0.27"
+
+# System info and monitoring
+sys-info = "0.9.1"
+num_cpus = "1.17.0"
+prometheus = "0.14.0"
+opentelemetry = "0.27"
+opentelemetry-otlp = "0.27"
+
+# Embedding models (optional)
+ort = { version = "2.0.0-rc.10", features = ["builder"] }
+
+# Testing and benchmarking
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.6"
+mockall = "0.13"
+tokio-test = "0.4"
+tempfile = "3.14"
+wiremock = "0.6"
+
+# WASM-specific dependencies (for potential web extensions)
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = "0.3"
+
+# Random utilities
+rand = "0.8"
+rand_chacha = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+panic = "abort"
+strip = "symbols"
+debug = false
+overflow-checks = false
+
+# Memory-optimized profile for Windows builds
+[profile.release-memory-optimized]
+inherits = "release"
+opt-level = 2
+lto = false
+codegen-units = 8
+panic = "abort"
+strip = "symbols"
+debug = false
+overflow-checks = false
+incremental = true
+
+# Memory-optimized profile for PyO3 extension
+[profile.release-python]
+inherits = "release"
+opt-level = 2
+lto = false
+codegen-units = 8
+panic = "abort"
+strip = "symbols"
+debug = false
+overflow-checks = false
+incremental = true
+
+[profile.release-with-debug]
+inherits = "release"
+debug = 1
+strip = "none"
+
+[profile.dev]
+opt-level = 0
+debug = true
+overflow-checks = true
+
+[profile.bench]
+inherits = "release"
+debug = 1
+
+# Platform-specific optimizations
+[profile.release.package."*"]
+opt-level = 3
+debug = false
+
+# Memory profiling profile
+[profile.profiling]
+inherits = "release"
+debug = 1
+strip = "none"

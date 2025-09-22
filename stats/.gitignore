@@ -1,0 +1,322 @@
+# =============================================================================
+# Python
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# =============================================================================
+# Rust
+# =============================================================================
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+.cargo/
+**/*.rs.bk
+**/*.rs.orig
+rust_extensions/target/
+rag-redis-system/target/
+rust_core/target/
+
+# =============================================================================
+# UV/Python Package Management
+# =============================================================================
+.venv/
+uv.lock
+poetry.lock
+Pipfile.lock
+requirements.lock
+
+# =============================================================================
+# Archive and Backup Directories
+# =============================================================================
+archived/
+archive/
+archives/
+old/
+deprecated/
+backup/
+backups/
+attic/
+legacy/
+obsolete/
+archived_scripts/
+archived_download_scripts/
+
+# =============================================================================
+# Backup Files
+# =============================================================================
+*.bak
+*.old
+*~
+*.backup
+*_backup
+*.orig
+*.save
+*.swp
+*.swo
+*.tmp
+*_old
+*_bak
+*.backup.*
+.#*
+\#*#
+
+# =============================================================================
+# Temporary Files and Directories
+# =============================================================================
+/tmp/
+/temp/
+scratch/
+.temp/
+.tmp/
+*.tmp
+*.temp
+.cache/
+.scratch/
+temp_*
+tmp_*
+
+# =============================================================================
+# Models and Data
+# =============================================================================
+models/
+*.bin
+*.safetensors
+*.gguf
+*.onnx
+*.pkl
+*.pickle
+*.pt
+*.pth
+*.h5
+*.hdf5
+data/models/
+data/cache/
+data/training/
+checkpoint*/
+wandb/
+mlruns/
+.mlflow/
+tensorboard_logs/
+
+# =============================================================================
+# Configuration and Secrets
+# =============================================================================
+.env
+.env.*
+!.env.template
+!.env.example
+*.json
+!*.json.template
+!package.json
+!tsconfig.json
+!mcp.json
+!settings.json
+config/gcp-profile*.json
+config/*service-account*.json
+*credentials*.json
+*secret*
+*token*
+.gcp/
+.google/
+.aws/
+.azure/
+*.key
+*.pem
+*.crt
+*.cert
+
+# =============================================================================
+# IDE and Editor Files
+# =============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vim/
+.netrwhist
+*.sublime-*
+.brackets.json
+.project
+.settings/
+.classpath
+.factorypath
+.buildpath
+.target
+.metadata
+.recommenders/
+.loadpath
+.externalToolBuilders/
+*.launch
+
+# =============================================================================
+# Build Artifacts
+# =============================================================================
+cmake-build*/
+build/
+Build/
+BUILD/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.whl
+*.wasm
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+*.app
+*.dSYM/
+*.o
+*.obj
+*.lib
+*.a
+*.la
+*.lo
+*.slo
+node_modules/
+dist/
+.next/
+.nuxt/
+.output/
+.vercel/
+
+# =============================================================================
+# Logs and Output Files
+# =============================================================================
+*.log
+logs/
+*.out
+*.err
+*.trace
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.eslintcache
+.parcel-cache/
+.cache/
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# =============================================================================
+# Testing
+# =============================================================================
+.coverage
+coverage.xml
+*.cover
+.pytest_cache/
+test-results/
+.nyc_output
+coverage/
+lib-cov
+.grunt
+.sass-cache/
+connect.lock
+typings/
+.karma/
+
+# =============================================================================
+# Documentation
+# =============================================================================
+docs/_build/
+site/
+.sphinx/
+.doctrees/
+.mkdocs/
+
+# =============================================================================
+# OS Specific Files
+# =============================================================================
+# Windows
+Thumbs.db
+desktop.ini
+*.lnk
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# Database Files
+# =============================================================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# =============================================================================
+# Project Specific
+# =============================================================================
+gemma.cpp/
+.claude/context/TEMP_*
+rag-redis-system/mcp-data/
+mcp-data/
+redis-data/
+.redis/

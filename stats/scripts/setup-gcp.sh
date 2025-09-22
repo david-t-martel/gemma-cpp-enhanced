@@ -1,0 +1,466 @@
+#!/bin/bash
+
+# Setup script for Google Cloud Platform integration
+# This script configures GCP authentication and downloads Gemma models
+
+set -e  # Exit on error
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+CONFIG_DIR="$PROJECT_ROOT/config"
+GCP_CONFIG_FILE="$CONFIG_DIR/gcp-config.yaml"
+MODEL_CACHE_DIR="${HOME}/.cache/gemma"
+
+# Function to print colored output
+print_color() {
+    local color=$1
+    shift
+    echo -e "${color}$@${NC}"
+}
+
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Function to prompt for input
+prompt_input() {
+    local prompt=$1
+    local var_name=$2
+    local default=$3
+
+    if [ -n "$default" ]; then
+        read -p "$prompt [$default]: " value
+        value=${value:-$default}
+    else
+        read -p "$prompt: " value
+    fi
+
+    eval "$var_name='$value'"
+}
+
+# Function to prompt for secret input
+prompt_secret() {
+    local prompt=$1
+    local var_name=$2
+
+    read -s -p "$prompt: " value
+    echo
+    eval "$var_name='$value'"
+}
+
+# Header
+print_color $BLUE "================================================"
+print_color $BLUE "    Google Cloud Platform Integration Setup"
+print_color $BLUE "================================================"
+echo
+
+# Check for Python
+if ! command_exists python3; then
+    print_color $RED "Error: Python 3 is not installed"
+    exit 1
+fi
+
+# Check for gcloud CLI (optional but recommended)
+if command_exists gcloud; then
+    print_color $GREEN "✓ Google Cloud SDK detected"
+
+    # Get current project
+    CURRENT_PROJECT=$(gcloud config get-value project 2>/dev/null || echo "")
+    if [ -n "$CURRENT_PROJECT" ]; then
+        print_color $BLUE "Current GCP project: $CURRENT_PROJECT"
+    fi
+else
+    print_color $YELLOW "⚠ Google Cloud SDK not found (optional)"
+    print_color $YELLOW "  Install from: https://cloud.google.com/sdk/docs/install"
+fi
+
+# Check for existing configuration
+if [ -f "$GCP_CONFIG_FILE" ]; then
+    print_color $YELLOW "Existing configuration found at: $GCP_CONFIG_FILE"
+    prompt_input "Overwrite existing configuration? (y/n)" OVERWRITE "n"
+
+    if [ "$OVERWRITE" != "y" ]; then
+        print_color $BLUE "Keeping existing configuration"
+        CONFIG_EXISTS=true
+    else
+        CONFIG_EXISTS=false
+    fi
+else
+    CONFIG_EXISTS=false
+fi
+
+# Configure GCP settings
+if [ "$CONFIG_EXISTS" = false ]; then
+    print_color $BLUE "\nConfiguring GCP settings..."
+
+    # Project ID
+    prompt_input "Enter your GCP project ID" PROJECT_ID "$CURRENT_PROJECT"
+
+    # Region
+    prompt_input "Enter preferred GCP region" REGION "us-central1"
+
+    # Authentication method
+    print_color $BLUE "\nAuthentication methods:"
+    print_color $BLUE "  1. application_default (recommended for development)"
+    print_color $BLUE "  2. service_account (recommended for production)"
+    print_color $BLUE "  3. workload_identity (for GKE workloads)"
+    print_color $BLUE "  4. compute_engine (when running on GCE)"
+    prompt_input "Select authentication method (1-4)" AUTH_CHOICE "1"
+
+    case $AUTH_CHOICE in
+        1) AUTH_METHOD="application_default" ;;
+        2) AUTH_METHOD="service_account" ;;
+        3) AUTH_METHOD="workload_identity" ;;
+        4) AUTH_METHOD="compute_engine" ;;
+        *) AUTH_METHOD="application_default" ;;
+    esac
+
+    # Service account setup
+    if [ "$AUTH_METHOD" = "service_account" ]; then
+        prompt_input "Path to service account JSON key file" SA_KEY_FILE ""
+
+        if [ -n "$SA_KEY_FILE" ] && [ -f "$SA_KEY_FILE" ]; then
+            # Copy key file to secure location
+            SA_KEY_DEST="$CONFIG_DIR/sa-key.json"
+            cp "$SA_KEY_FILE" "$SA_KEY_DEST"
+            chmod 600 "$SA_KEY_DEST"
+            print_color $GREEN "✓ Service account key copied to $SA_KEY_DEST"
+        else
+            print_color $YELLOW "⚠ Service account key file not found, will need to configure later"
+            SA_KEY_DEST=""
+        fi
+    fi
+
+    # GCS bucket
+    prompt_input "GCS bucket for model storage (optional)" GCS_BUCKET ""
+
+    # Model sources
+    print_color $BLUE "\nConfigure model download sources:"
+
+    # Kaggle
+    prompt_input "Do you have Kaggle credentials? (y/n)" HAS_KAGGLE "n"
+    if [ "$HAS_KAGGLE" = "y" ]; then
+        prompt_input "Kaggle username" KAGGLE_USERNAME ""
+        prompt_secret "Kaggle API key" KAGGLE_KEY
+    fi
+
+    # Hugging Face
+    prompt_input "Do you have a Hugging Face token? (y/n)" HAS_HF "n"
+    if [ "$HAS_HF" = "y" ]; then
+        prompt_secret "Hugging Face token" HF_TOKEN
+    fi
+
+    # Create configuration file
+    print_color $BLUE "\nCreating configuration file..."
+
+    cat > "$GCP_CONFIG_FILE" <<EOF
+# Google Cloud Platform Configuration
+# Generated by setup-gcp.sh on $(date)
+
+project_id: "$PROJECT_ID"
+region: "$REGION"
+auth_method: "$AUTH_METHOD"
+
+EOF
+
+    if [ "$AUTH_METHOD" = "service_account" ] && [ -n "$SA_KEY_DEST" ]; then
+        echo "service_account: \"$SA_KEY_DEST\"" >> "$GCP_CONFIG_FILE"
+    fi
+
+    if [ -n "$GCS_BUCKET" ]; then
+        cat >> "$GCP_CONFIG_FILE" <<EOF
+
+gcs_bucket: "$GCS_BUCKET"
+gcs_prefix: "gemma-models"
+EOF
+    fi
+
+    cat >> "$GCP_CONFIG_FILE" <<EOF
+
+model_cache_dir: "$MODEL_CACHE_DIR"
+
+EOF
+
+    if [ "$HAS_KAGGLE" = "y" ]; then
+        cat >> "$GCP_CONFIG_FILE" <<EOF
+kaggle_username: "$KAGGLE_USERNAME"
+kaggle_key: "$KAGGLE_KEY"
+
+EOF
+    fi
+
+    if [ "$HAS_HF" = "y" ]; then
+        cat >> "$GCP_CONFIG_FILE" <<EOF
+huggingface_token: "$HF_TOKEN"
+
+EOF
+    fi
+
+    cat >> "$GCP_CONFIG_FILE" <<EOF
+api_timeout: 30
+api_retry_count: 3
+api_retry_delay: 1.0
+
+enable_audit_logging: true
+enable_encryption: true
+EOF
+
+    print_color $GREEN "✓ Configuration saved to $GCP_CONFIG_FILE"
+fi
+
+# Install Python dependencies
+print_color $BLUE "\nInstalling Python dependencies..."
+
+cd "$PROJECT_ROOT"
+
+# Check for virtual environment
+if [ -d ".venv" ]; then
+    print_color $GREEN "✓ Virtual environment found"
+    source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate 2>/dev/null || true
+else
+    print_color $YELLOW "Creating virtual environment..."
+    python3 -m venv .venv
+    source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate 2>/dev/null || true
+fi
+
+# Install GCP dependencies
+print_color $BLUE "Installing GCP libraries..."
+pip install --quiet --upgrade pip
+pip install --quiet google-cloud-storage google-auth google-auth-httplib2 google-auth-oauthlib
+
+# Install optional dependencies
+if [ "$HAS_KAGGLE" = "y" ]; then
+    print_color $BLUE "Installing Kaggle API..."
+    pip install --quiet kaggle
+fi
+
+if [ "$HAS_HF" = "y" ]; then
+    print_color $BLUE "Installing Hugging Face Hub..."
+    pip install --quiet huggingface-hub
+fi
+
+# Install additional dependencies
+pip install --quiet pyyaml tqdm requests
+
+print_color $GREEN "✓ Dependencies installed"
+
+# Setup Application Default Credentials if needed
+if [ "$AUTH_METHOD" = "application_default" ]; then
+    if command_exists gcloud; then
+        print_color $BLUE "\nSetting up Application Default Credentials..."
+
+        # Check if ADC exists
+        if [ -f "${HOME}/.config/gcloud/application_default_credentials.json" ]; then
+            print_color $GREEN "✓ Application Default Credentials already configured"
+        else
+            print_color $YELLOW "Running: gcloud auth application-default login"
+            print_color $YELLOW "This will open a browser for authentication..."
+            gcloud auth application-default login
+        fi
+    else
+        print_color $YELLOW "⚠ Cannot setup Application Default Credentials without gcloud CLI"
+        print_color $YELLOW "  Please install Google Cloud SDK and run: gcloud auth application-default login"
+    fi
+fi
+
+# Create model cache directory
+mkdir -p "$MODEL_CACHE_DIR"
+print_color $GREEN "✓ Model cache directory created: $MODEL_CACHE_DIR"
+
+# Test configuration
+print_color $BLUE "\nTesting GCP configuration..."
+
+python3 <<EOF
+import sys
+sys.path.insert(0, '$PROJECT_ROOT/src')
+
+try:
+    from gcp import GCPConfig, GCPAuthManager, validate_config
+
+    # Load configuration
+    config = GCPConfig.from_yaml('$GCP_CONFIG_FILE')
+
+    # Validate configuration
+    if validate_config(config):
+        print("✓ Configuration is valid")
+    else:
+        print("⚠ Configuration has issues (see errors above)")
+
+    # Test authentication
+    auth_manager = GCPAuthManager(config)
+    if auth_manager.validate_credentials():
+        print("✓ Authentication successful")
+        print(f"  Project ID: {auth_manager.get_project_id()}")
+    else:
+        print("⚠ Authentication failed")
+
+except Exception as e:
+    print(f"✗ Error: {e}")
+    sys.exit(1)
+EOF
+
+if [ $? -eq 0 ]; then
+    print_color $GREEN "✓ GCP integration configured successfully!"
+else
+    print_color $RED "✗ Configuration test failed"
+    exit 1
+fi
+
+# Optional: Download a model
+print_color $BLUE "\nWould you like to download a Gemma model now?"
+prompt_input "Download model? (y/n)" DOWNLOAD_MODEL "n"
+
+if [ "$DOWNLOAD_MODEL" = "y" ]; then
+    print_color $BLUE "\nAvailable models:"
+    print_color $BLUE "  1. gemma-2b (5GB)"
+    print_color $BLUE "  2. gemma-2b-it (5GB, instruction-tuned)"
+    print_color $BLUE "  3. gemma-7b (17GB)"
+    print_color $BLUE "  4. gemma-7b-it (17GB, instruction-tuned)"
+    print_color $BLUE "  5. codegemma-2b (5GB, code model)"
+    print_color $BLUE "  6. codegemma-7b (17GB, code model)"
+
+    prompt_input "Select model to download (1-6)" MODEL_CHOICE ""
+
+    case $MODEL_CHOICE in
+        1) MODEL_VARIANT="gemma-2b" ;;
+        2) MODEL_VARIANT="gemma-2b-it" ;;
+        3) MODEL_VARIANT="gemma-7b" ;;
+        4) MODEL_VARIANT="gemma-7b-it" ;;
+        5) MODEL_VARIANT="codegemma-2b" ;;
+        6) MODEL_VARIANT="codegemma-7b" ;;
+        *) MODEL_VARIANT="" ;;
+    esac
+
+    if [ -n "$MODEL_VARIANT" ]; then
+        print_color $BLUE "Downloading $MODEL_VARIANT..."
+
+        python3 <<EOF
+import sys
+sys.path.insert(0, '$PROJECT_ROOT/src')
+
+from gcp import GCPConfig, GemmaModelManager, ModelVariant
+
+config = GCPConfig.from_yaml('$GCP_CONFIG_FILE')
+manager = GemmaModelManager(config)
+
+variant = ModelVariant('$MODEL_VARIANT'.replace('-', '_').upper())
+try:
+    path = manager.download_model(variant)
+    print(f"✓ Model downloaded to: {path}")
+except Exception as e:
+    print(f"✗ Download failed: {e}")
+    sys.exit(1)
+EOF
+    fi
+fi
+
+# Create example script
+print_color $BLUE "\nCreating example script..."
+
+cat > "$PROJECT_ROOT/gcp_example.py" <<'EOF'
+#!/usr/bin/env python3
+"""
+Example script demonstrating GCP integration usage.
+"""
+
+from pathlib import Path
+import sys
+
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent / 'src'))
+
+from gcp import (
+    GCPConfig,
+    GCPAuthManager,
+    GCSStorageManager,
+    GemmaModelManager,
+    ModelVariant
+)
+
+
+def main():
+    # Load configuration
+    config = GCPConfig.from_yaml('config/gcp-config.yaml')
+    print(f"Project: {config.project_id}")
+    print(f"Region: {config.region.value}")
+
+    # Initialize managers
+    auth_manager = GCPAuthManager(config)
+    storage_manager = GCSStorageManager(config, auth_manager)
+    model_manager = GemmaModelManager(config, auth_manager, storage_manager)
+
+    # Validate authentication
+    if auth_manager.validate_credentials():
+        print("✓ Authentication successful")
+    else:
+        print("✗ Authentication failed")
+        return
+
+    # List available models
+    print("\nAvailable models:")
+    for model_info in model_manager.list_available_models():
+        cached = "✓" if model_manager.is_model_cached(model_info.variant) else "✗"
+        print(f"  [{cached}] {model_info.variant.value} ({model_info.size_gb}GB)")
+
+    # List cached models
+    cached_models = model_manager.list_cached_models()
+    if cached_models:
+        print(f"\nCached models ({model_manager.get_cache_size():.2f}GB total):")
+        for variant, metadata in cached_models:
+            print(f"  - {variant.value}")
+            if metadata:
+                print(f"    Downloaded: {metadata.get('downloaded_at', 'Unknown')}")
+                print(f"    Size: {metadata.get('size_bytes', 0) / (1024**3):.2f}GB")
+
+    # Example: Download a model (commented out)
+    # variant = ModelVariant.GEMMA_2B
+    # if not model_manager.is_model_cached(variant):
+    #     print(f"\nDownloading {variant.value}...")
+    #     path = model_manager.download_model(variant)
+    #     print(f"Downloaded to: {path}")
+
+    # Example: Upload to GCS (commented out)
+    # if config.gcs_bucket and model_manager.is_model_cached(variant):
+    #     print(f"\nUploading {variant.value} to GCS...")
+    #     objects = model_manager.upload_to_gcs(variant)
+    #     print(f"Uploaded {len(objects)} files")
+
+    print("\nSetup complete! Edit this script to test more features.")
+
+
+if __name__ == "__main__":
+    main()
+EOF
+
+chmod +x "$PROJECT_ROOT/gcp_example.py"
+print_color $GREEN "✓ Example script created: gcp_example.py"
+
+# Summary
+print_color $BLUE "\n================================================"
+print_color $GREEN "    Setup Complete!"
+print_color $BLUE "================================================"
+print_color $GREEN "\nNext steps:"
+print_color $GREEN "  1. Review configuration: $GCP_CONFIG_FILE"
+print_color $GREEN "  2. Test the integration: python gcp_example.py"
+print_color $GREEN "  3. Download models as needed"
+echo
+
+if [ -z "$GCS_BUCKET" ]; then
+    print_color $YELLOW "Note: No GCS bucket configured. Models will only be stored locally."
+fi
+
+if [ "$HAS_KAGGLE" != "y" ] && [ "$HAS_HF" != "y" ]; then
+    print_color $YELLOW "Note: No model download sources configured."
+    print_color $YELLOW "      Configure Kaggle or Hugging Face credentials to download models."
+fi
+
+print_color $BLUE "\nFor more information, see the documentation in src/gcp/"

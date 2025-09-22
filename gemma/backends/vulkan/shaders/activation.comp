@@ -1,0 +1,190 @@
+#version 450
+
+/**
+ * Activation Functions Compute Shader
+ * Supports multiple activation functions through specialization constants
+ *
+ * Supported functions:
+ * - ReLU: f(x) = max(0, x)
+ * - GELU: f(x) = x * Φ(x) ≈ 0.5 * x * (1 + tanh(√(2/π) * (x + 0.044715 * x³)))
+ * - Softmax: f(x_i) = exp(x_i) / Σ exp(x_j)
+ * - Swish/SiLU: f(x) = x * sigmoid(x)
+ * - Tanh: f(x) = tanh(x)
+ */
+
+// Workgroup size - optimized for memory bandwidth
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+// Specialization constants for function selection
+layout(constant_id = 0) const int ACTIVATION_TYPE = 0; // 0=ReLU, 1=GELU, 2=Softmax, 3=Swish, 4=Tanh
+
+// Uniform buffer for parameters
+layout(set = 0, binding = 0) uniform UniformBuffer {
+    uint size;          // Total number of elements
+    uint softmax_dim;   // Dimension for softmax (if applicable)
+    float alpha;        // Additional parameter (e.g., for ELU)
+    float beta;         // Additional parameter
+} ubo;
+
+// Storage buffers
+layout(set = 0, binding = 1, std430) restrict readonly buffer InputBuffer {
+    float input_data[];
+};
+
+layout(set = 0, binding = 2, std430) restrict writeonly buffer OutputBuffer {
+    float output_data[];
+};
+
+// Shared memory for softmax reduction
+shared float sdata[256];
+
+// Mathematical constants
+const float PI = 3.14159265359;
+const float SQRT_2_PI = 0.7978845608; // sqrt(2/pi)
+const float GELU_COEFF = 0.044715;
+
+// Helper functions for activation functions
+float relu(float x) {
+    return max(0.0, x);
+}
+
+float gelu_approx(float x) {
+    float x3 = x * x * x;
+    float inner = SQRT_2_PI * (x + GELU_COEFF * x3);
+    return 0.5 * x * (1.0 + tanh(inner));
+}
+
+float swish(float x) {
+    return x / (1.0 + exp(-x));
+}
+
+float sigmoid(float x) {
+    return 1.0 / (1.0 + exp(-x));
+}
+
+// Softmax implementation with numerical stability
+void compute_softmax() {
+    uint global_id = gl_GlobalInvocationID.x;
+    uint local_id = gl_LocalInvocationID.x;
+    uint group_id = gl_WorkGroupID.x;
+
+    // Calculate which softmax group this thread belongs to
+    uint elements_per_group = ubo.softmax_dim;
+    uint group_start = group_id * elements_per_group;
+    uint group_end = min(group_start + elements_per_group, ubo.size);
+
+    if (global_id >= ubo.size) return;
+
+    // Phase 1: Find maximum value for numerical stability
+    float max_val = -1.0 / 0.0; // negative infinity
+
+    for (uint i = group_start; i < group_end; ++i) {
+        max_val = max(max_val, input_data[i]);
+    }
+
+    // Share max value across workgroup
+    sdata[local_id] = max_val;
+    barrier();
+
+    // Reduce to find global max within group
+    for (uint stride = 128; stride > 0; stride >>= 1) {
+        if (local_id < stride && local_id + stride < 256) {
+            sdata[local_id] = max(sdata[local_id], sdata[local_id + stride]);
+        }
+        barrier();
+    }
+
+    float group_max = sdata[0];
+    barrier();
+
+    // Phase 2: Compute exponentials and sum
+    float sum = 0.0;
+    for (uint i = group_start; i < group_end; ++i) {
+        sum += exp(input_data[i] - group_max);
+    }
+
+    // Share sum across workgroup
+    sdata[local_id] = sum;
+    barrier();
+
+    // Reduce to find total sum
+    for (uint stride = 128; stride > 0; stride >>= 1) {
+        if (local_id < stride && local_id + stride < 256) {
+            sdata[local_id] += sdata[local_id + stride];
+        }
+        barrier();
+    }
+
+    float total_sum = sdata[0];
+    barrier();
+
+    // Phase 3: Compute final softmax values
+    if (global_id >= group_start && global_id < group_end) {
+        output_data[global_id] = exp(input_data[global_id] - group_max) / total_sum;
+    }
+}
+
+void main() {
+    uint global_id = gl_GlobalInvocationID.x;
+
+    // Handle softmax separately due to its special requirements
+    if (ACTIVATION_TYPE == 2) {
+        compute_softmax();
+        return;
+    }
+
+    // Check bounds for element-wise operations
+    if (global_id >= ubo.size) {
+        return;
+    }
+
+    float input_val = input_data[global_id];
+    float output_val;
+
+    // Select activation function based on specialization constant
+    switch (ACTIVATION_TYPE) {
+        case 0: // ReLU
+            output_val = relu(input_val);
+            break;
+
+        case 1: // GELU
+            output_val = gelu_approx(input_val);
+            break;
+
+        case 3: // Swish/SiLU
+            output_val = swish(input_val);
+            break;
+
+        case 4: // Tanh
+            output_val = tanh(input_val);
+            break;
+
+        default:
+            output_val = input_val; // Identity
+            break;
+    }
+
+    output_data[global_id] = output_val;
+}
+
+// Additional specialized shaders for common operations
+#ifdef RELU_ONLY
+void main() {
+    uint global_id = gl_GlobalInvocationID.x;
+    if (global_id >= ubo.size) return;
+
+    output_data[global_id] = max(0.0, input_data[global_id]);
+}
+#endif
+
+#ifdef GELU_ONLY
+void main() {
+    uint global_id = gl_GlobalInvocationID.x;
+    if (global_id >= ubo.size) return;
+
+    float x = input_data[global_id];
+    float x3 = x * x * x;
+    float inner = SQRT_2_PI * (x + GELU_COEFF * x3);
+    output_data[global_id] = 0.5 * x * (1.0 + tanh(inner));
+}
+#endif

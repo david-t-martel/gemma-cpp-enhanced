@@ -1,0 +1,241 @@
+version: '3.8'
+
+services:
+  # Nginx reverse proxy with load balancing
+  nginx:
+    image: nginx:alpine
+    container_name: gemma-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - app1
+      - app2
+      - app3
+    networks:
+      - gemma-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Application instances for load balancing
+  app1:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      args:
+        - MODEL_NAME=${MODEL_NAME:-microsoft/phi-2}
+    container_name: gemma-app-1
+    environment:
+      - MODEL_NAME=${MODEL_NAME:-microsoft/phi-2}
+      - HF_TOKEN=${HF_TOKEN}
+      - DOCKER_CONTAINER=true
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_MAX_CONNECTIONS=20
+      - REDIS_ENABLE_FALLBACK=false
+      - APP_PORT=8000
+      - WORKERS=4
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENABLE_METRICS=true
+      - INSTANCE_ID=app1
+    volumes:
+      - ./models:/app/models:cached
+      - ./logs/app1:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - gemma-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  app2:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      args:
+        - MODEL_NAME=${MODEL_NAME:-microsoft/phi-2}
+    container_name: gemma-app-2
+    environment:
+      - MODEL_NAME=${MODEL_NAME:-microsoft/phi-2}
+      - HF_TOKEN=${HF_TOKEN}
+      - DOCKER_CONTAINER=true
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_MAX_CONNECTIONS=20
+      - REDIS_ENABLE_FALLBACK=false
+      - APP_PORT=8000
+      - WORKERS=4
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENABLE_METRICS=true
+      - INSTANCE_ID=app2
+    volumes:
+      - ./models:/app/models:cached
+      - ./logs/app2:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - gemma-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  app3:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      args:
+        - MODEL_NAME=${MODEL_NAME:-microsoft/phi-2}
+    container_name: gemma-app-3
+    environment:
+      - MODEL_NAME=${MODEL_NAME:-microsoft/phi-2}
+      - HF_TOKEN=${HF_TOKEN}
+      - DOCKER_CONTAINER=true
+      - REDIS_URL=redis://redis:6379
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_MAX_CONNECTIONS=20
+      - REDIS_ENABLE_FALLBACK=false
+      - APP_PORT=8000
+      - WORKERS=4
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENABLE_METRICS=true
+      - INSTANCE_ID=app3
+    volumes:
+      - ./models:/app/models:cached
+      - ./logs/app3:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - gemma-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: gemma-redis
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_HOST_PORT:-6380}:6379"  # Map to host port 6380 by default
+    volumes:
+      - redis-data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - gemma-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gemma-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - gemma-network
+    restart: unless-stopped
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gemma-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - gemma-network
+    restart: unless-stopped
+
+  # Loki for log aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: gemma-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - gemma-network
+    restart: unless-stopped
+
+  # Promtail for log shipping
+  promtail:
+    image: grafana/promtail:latest
+    container_name: gemma-promtail
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./logs:/var/log/apps:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - gemma-network
+    restart: unless-stopped
+
+networks:
+  gemma-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:

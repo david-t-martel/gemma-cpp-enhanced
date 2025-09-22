@@ -1,0 +1,65 @@
+cmake_minimum_required(VERSION 3.11)
+
+project(gemma)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Try to use system-installed highway instead of fetching
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(HWY highway)
+endif()
+
+if(NOT HWY_FOUND)
+    # Fallback to FetchContent
+    include(FetchContent)
+    FetchContent_Declare(highway 
+        GIT_REPOSITORY https://github.com/google/highway.git 
+        GIT_TAG 1d16731233de45a365b43867f27d0a5f73925300 
+        EXCLUDE_FROM_ALL
+    )
+    FetchContent_MakeAvailable(highway)
+endif()
+
+# Minimal source files (excluding griffin and tests)
+set(SOURCES
+  compression/compress.cc
+  evals/benchmark_helper.cc
+  gemma/attention.cc
+  gemma/configs.cc
+  gemma/gemma.cc
+  gemma/kv_cache.cc
+  gemma/model_store.cc
+  gemma/tensor_info.cc
+  gemma/tokenizer.cc
+  gemma/weights.cc
+  io/blob_store.cc
+  io/fields.cc
+  io/io.cc
+  ops/matmul.cc
+  util/allocator.cc
+  util/mat.cc
+  util/threading.cc
+  util/threading_context.cc
+  util/topology.cc
+  gemma/run.cc  # Main executable
+)
+
+# Windows-specific IO
+if(WIN32)
+    list(APPEND SOURCES io/io_win.cc)
+endif()
+
+add_executable(gemma ${SOURCES})
+target_include_directories(gemma PUBLIC ./)
+target_link_libraries(gemma hwy hwy_contrib)
+target_compile_definitions(gemma PRIVATE $<$<PLATFORM_ID:Windows>:_CRT_SECURE_NO_WARNINGS NOMINMAX>)
+
+# Try to find system sentencepiece
+find_library(SENTENCEPIECE_LIB sentencepiece)
+if(SENTENCEPIECE_LIB)
+    target_link_libraries(gemma ${SENTENCEPIECE_LIB})
+else()
+    message(WARNING "SentencePiece not found, you may need to install it separately")
+endif()

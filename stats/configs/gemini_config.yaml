@@ -1,0 +1,284 @@
+# Gemini Integration Configuration
+# This file configures the Gemini AI integration for code review, analysis, and optimization
+
+# API Configuration
+api:
+  # API key - set via environment variable GEMINI_API_KEY or GOOGLE_API_KEY
+  # Can be obtained from: https://makersuite.google.com/app/apikey
+  api_key: ${GEMINI_API_KEY}
+
+  # Base URL for Gemini API
+  base_url: "https://generativelanguage.googleapis.com/v1beta"
+
+  # Request timeout in seconds
+  timeout: 30
+
+  # Maximum number of retries for failed requests
+  max_retries: 3
+
+  # Rate limiting - max concurrent requests
+  max_concurrent_requests: 10
+
+# Model Configuration
+models:
+  # Default model for general use
+  default: "gemini-1.5-flash"
+
+  # Model selection for different tasks
+  code_review: "gemini-1.5-pro"
+  code_analysis: "gemini-1.5-pro"
+  optimization: "gemini-1.5-pro"
+  quick_suggestions: "gemini-1.5-flash"
+
+  # Available models
+  available:
+    - name: "gemini-pro"
+      description: "General purpose model"
+      context_window: 32768
+
+    - name: "gemini-pro-vision"
+      description: "Multimodal model for images and text"
+      context_window: 16384
+
+    - name: "gemini-1.5-pro"
+      description: "Advanced model with large context window"
+      context_window: 1048576  # 1M tokens
+
+    - name: "gemini-1.5-flash"
+      description: "Fast, efficient model for quick responses"
+      context_window: 1048576  # 1M tokens
+
+# Generation Parameters
+generation:
+  # Temperature for response randomness (0.0 - 1.0)
+  temperature: 0.3
+
+  # Top-p nucleus sampling
+  top_p: 0.95
+
+  # Top-k sampling
+  top_k: 40
+
+  # Maximum output tokens
+  max_output_tokens: 8192
+
+  # Number of response candidates
+  candidate_count: 1
+
+  # Stop sequences
+  stop_sequences: []
+
+# Safety Settings
+safety:
+  # Harm categories and their thresholds
+  # Options: BLOCK_NONE, BLOCK_LOW_AND_ABOVE, BLOCK_MEDIUM_AND_ABOVE, BLOCK_HIGH_AND_ABOVE
+  harassment: "BLOCK_MEDIUM_AND_ABOVE"
+  hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
+  sexually_explicit: "BLOCK_MEDIUM_AND_ABOVE"
+  dangerous_content: "BLOCK_MEDIUM_AND_ABOVE"
+
+# Code Review Configuration
+code_review:
+  # File extensions to review
+  supported_extensions:
+    - ".py"
+    - ".js"
+    - ".ts"
+    - ".jsx"
+    - ".tsx"
+    - ".java"
+    - ".cpp"
+    - ".c"
+    - ".cs"
+    - ".go"
+    - ".rs"
+    - ".rb"
+    - ".php"
+    - ".swift"
+    - ".kt"
+    - ".scala"
+    - ".r"
+    - ".vue"
+    - ".svelte"
+
+  # Patterns to exclude from review
+  exclude_patterns:
+    - "__pycache__"
+    - "node_modules"
+    - ".git"
+    - ".venv"
+    - "venv"
+    - "dist"
+    - "build"
+    - ".pytest_cache"
+    - ".mypy_cache"
+    - "coverage"
+
+  # Maximum files to review in batch
+  max_files_per_batch: 50
+
+  # Number of parallel review tasks
+  parallel_reviews: 5
+
+  # Review focus areas (can be customized per project)
+  default_focus_areas:
+    - "security"
+    - "performance"
+    - "code_quality"
+    - "testing"
+
+# Code Analysis Configuration
+code_analysis:
+  # Enable deep AI analysis
+  deep_analysis: true
+
+  # Complexity thresholds
+  complexity:
+    simple: 5
+    moderate: 10
+    complex: 20
+    very_complex: 30
+
+  # Code smell detection
+  detect_code_smells: true
+
+  # Design pattern detection
+  detect_patterns: true
+
+  # Architecture analysis
+  analyze_architecture: true
+
+  # Maximum files to analyze
+  max_files: 100
+
+  # Parallel analysis tasks
+  parallel_tasks: 5
+
+# Optimization Configuration
+optimization:
+  # Default optimization targets
+  default_targets:
+    - "performance"
+    - "memory"
+
+  # Risk tolerance levels
+  risk_tolerance: "medium"  # low, medium, high
+
+  # Preserve code readability
+  preserve_readability: true
+
+  # Maintain backward compatibility
+  maintain_compatibility: true
+
+  # Optimization strategies
+  strategies:
+    performance:
+      - "loop_optimization"
+      - "vectorization"
+      - "parallel_processing"
+      - "algorithm_complexity"
+      - "lazy_evaluation"
+
+    memory:
+      - "memory_pooling"
+      - "object_recycling"
+      - "data_structure_optimization"
+      - "memory_leak_prevention"
+      - "buffer_management"
+
+    caching:
+      - "memoization"
+      - "result_caching"
+      - "query_caching"
+      - "cdn_usage"
+      - "browser_caching"
+
+  # Benchmark configuration
+  benchmarking:
+    enabled: true
+    iterations: 100
+    warmup_iterations: 10
+
+# Caching Configuration
+cache:
+  # Enable response caching
+  enabled: true
+
+  # Cache directory
+  directory: ".gemini_cache"
+
+  # Cache TTL in seconds (1 hour)
+  ttl: 3600
+
+  # Maximum cache size in MB
+  max_size: 100
+
+# Logging Configuration
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+
+  # Log file path
+  file: "logs/gemini_integration.log"
+
+  # Console output
+  console: true
+
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Feature Flags
+features:
+  # Enable code review
+  code_review: true
+
+  # Enable code analysis
+  code_analysis: true
+
+  # Enable optimization suggestions
+  optimization: true
+
+  # Enable parallel processing
+  parallel_processing: true
+
+  # Enable caching
+  caching: true
+
+  # Enable telemetry (anonymous usage statistics)
+  telemetry: false
+
+# Integration Settings
+integration:
+  # Standalone mode - works independently of other AI services
+  standalone_mode: true
+
+  # Fallback to other services if Gemini fails
+  enable_fallback: false
+
+  # Webhook for notifications
+  webhook_url: null
+
+  # Export formats
+  export_formats:
+    - "json"
+    - "markdown"
+    - "html"
+    - "sarif"  # Static Analysis Results Interchange Format
+
+# Project-Specific Overrides
+# These can be customized per project
+projects:
+  default:
+    # Use default settings
+    inherit: true
+
+  # Example project override
+  # my_project:
+  #   models:
+  #     code_review: "gemini-1.5-pro"
+  #   generation:
+  #     temperature: 0.2
+  #   code_review:
+  #     focus_areas:
+  #       - "security"
+  #       - "performance"

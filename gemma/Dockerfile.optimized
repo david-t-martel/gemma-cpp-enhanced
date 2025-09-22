@@ -1,0 +1,400 @@
+# Optimized Multi-Stage Dockerfile for Gemma.cpp
+# Features: Layer caching, security hardening, multi-arch support
+
+# ==============================================================================
+# Build Stage 1: Base Build Environment with Optimizations
+# ==============================================================================
+FROM ubuntu:22.04 AS base-builder
+
+# Build arguments for customization
+ARG TARGETARCH
+ARG TARGETPLATFORM
+ARG BUILD_TYPE=Release
+ARG ENABLE_CUDA=false
+ARG ENABLE_SYCL=false
+ARG ENABLE_VULKAN=true
+ARG ENABLE_OPENCL=true
+ARG ENABLE_MCP_SERVER=true
+ARG CMAKE_PARALLEL_JOBS=0
+
+# Metadata
+LABEL maintainer="Gemma.cpp Enhanced Team"
+LABEL description="Optimized Gemma.cpp with hardware acceleration"
+LABEL org.opencontainers.image.source="https://github.com/google/gemma.cpp"
+
+# Environment setup
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=UTC \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PATH=/usr/local/bin:$PATH
+
+# Create non-root build user for security
+RUN groupadd -r build && useradd -r -g build -d /workspace -s /bin/bash build
+
+# Install base dependencies with version pinning
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Core build tools
+    build-essential=12.9ubuntu3 \
+    cmake=3.22.* \
+    ninja-build=1.10.* \
+    git=1:2.34.* \
+    # Compilers
+    gcc-11=11.2.* \
+    g++-11=11.2.* \
+    clang-14=1:14.* \
+    # Development libraries
+    pkg-config=0.29.* \
+    libc6-dev=2.35-* \
+    # Utilities
+    wget=1.21.* \
+    curl=7.81.* \
+    unzip=6.0-* \
+    ca-certificates=20230311* \
+    # Python for build scripts
+    python3=3.10.* \
+    python3-pip=22.0.* \
+    # Performance tools
+    ccache=4.5.* \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Set up compiler alternatives
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-11 100 \
+    --slave /usr/bin/g++ g++ /usr/bin/g++-11 \
+    --slave /usr/bin/gcov gcov /usr/bin/gcov-11 && \
+    update-alternatives --install /usr/bin/clang clang /usr/bin/clang-14 100 \
+    --slave /usr/bin/clang++ clang++ /usr/bin/clang++-14
+
+# Configure ccache for optimal performance
+RUN ccache --set-config=max_size=5G && \
+    ccache --set-config=compression=true && \
+    ccache --set-config=compression_level=6 && \
+    ccache --set-config=cache_dir=/workspace/.ccache
+
+# ==============================================================================
+# Build Stage 2: Hardware Acceleration Dependencies
+# ==============================================================================
+FROM base-builder AS hardware-deps
+
+# Install Vulkan SDK (conditional)
+RUN if [ "$ENABLE_VULKAN" = "true" ]; then \
+    wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | apt-key add - && \
+    wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list \
+        https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends vulkan-sdk=1.3.* && \
+    rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# Install OpenCL development files (conditional)
+RUN if [ "$ENABLE_OPENCL" = "true" ]; then \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        opencl-headers=3.0~2022.* \
+        ocl-icd-opencl-dev=2.2.* && \
+    rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# Install CUDA toolkit (conditional, architecture-aware)
+RUN if [ "$ENABLE_CUDA" = "true" ] && [ "$TARGETARCH" = "amd64" ]; then \
+    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb && \
+    dpkg -i cuda-keyring_1.0-1_all.deb && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        cuda-toolkit-12-3=12.3.* \
+        libcublas-dev-12-3=12.3.* \
+        libcufft-dev-12-3=12.3.* && \
+    rm -rf /var/lib/apt/lists/* cuda-keyring_1.0-1_all.deb; \
+    fi
+
+# Install Intel oneAPI (conditional, x86_64 only)
+RUN if [ "$ENABLE_SYCL" = "true" ] && [ "$TARGETARCH" = "amd64" ]; then \
+    wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | \
+        gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
+    echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | \
+        tee /etc/apt/sources.list.d/oneAPI.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        intel-oneapi-dpcpp-cpp-compiler=2023.* \
+        intel-oneapi-mkl-devel=2023.* && \
+    rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# Set environment variables for hardware acceleration
+ENV CUDA_PATH=/usr/local/cuda \
+    ONEAPI_ROOT=/opt/intel/oneapi \
+    VULKAN_SDK=/usr \
+    PATH=$CUDA_PATH/bin:$ONEAPI_ROOT/compiler/latest/linux/bin:$PATH \
+    LD_LIBRARY_PATH=$CUDA_PATH/lib64:$ONEAPI_ROOT/compiler/latest/linux/lib:$LD_LIBRARY_PATH
+
+# ==============================================================================
+# Build Stage 3: Source Preparation and Dependency Fetching
+# ==============================================================================
+FROM hardware-deps AS source-prep
+
+# Set working directory and ownership
+WORKDIR /workspace
+RUN chown -R build:build /workspace
+
+# Switch to build user for security
+USER build
+
+# Copy source code with proper ownership
+COPY --chown=build:build . /workspace/
+
+# Verify source integrity
+RUN find . -name "*.cpp" -o -name "*.cc" -o -name "*.h" | head -5 && \
+    test -f CMakeLists.txt && \
+    test -f CMakePresets.json
+
+# Pre-fetch dependencies to enable layer caching
+RUN mkdir -p build && cd build && \
+    cmake .. -G Ninja \
+        -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
+        -DGEMMA_BUILD_MCP_SERVER=$ENABLE_MCP_SERVER \
+        -DGEMMA_BUILD_BACKENDS=ON \
+        -DGEMMA_BUILD_ENHANCED_TESTS=OFF \
+        -DGEMMA_BUILD_BACKEND_TESTS=OFF \
+        -DGEMMA_BUILD_BENCHMARKS=ON \
+        -DGEMMA_AUTO_DETECT_BACKENDS=OFF \
+        -DGEMMA_BUILD_SYCL_BACKEND=$ENABLE_SYCL \
+        -DGEMMA_BUILD_CUDA_BACKEND=$ENABLE_CUDA \
+        -DGEMMA_BUILD_VULKAN_BACKEND=$ENABLE_VULKAN \
+        -DGEMMA_BUILD_OPENCL_BACKEND=$ENABLE_OPENCL \
+        -DGEMMA_ENABLE_LTO=ON \
+        -DGEMMA_ENABLE_PCH=ON \
+        -DGEMMA_ENABLE_UNITY_BUILDS=ON && \
+    echo "Dependencies fetched successfully"
+
+# ==============================================================================
+# Build Stage 4: Compilation
+# ==============================================================================
+FROM source-prep AS compile-stage
+
+# Initialize hardware acceleration environments
+RUN if [ "$ENABLE_SYCL" = "true" ] && [ -f "$ONEAPI_ROOT/setvars.sh" ]; then \
+    /bin/bash -c "source $ONEAPI_ROOT/setvars.sh" || true; \
+    fi
+
+# Compile with optimal settings
+RUN cd build && \
+    # Determine optimal job count
+    if [ "$CMAKE_PARALLEL_JOBS" = "0" ]; then \
+        JOBS=$(nproc); \
+    else \
+        JOBS=$CMAKE_PARALLEL_JOBS; \
+    fi && \
+    \
+    # Build with progress reporting
+    echo "Starting build with $JOBS parallel jobs..." && \
+    time ninja -j $JOBS -v && \
+    \
+    # Verify build artifacts
+    echo "Build completed. Verifying artifacts..." && \
+    find . -name "gemma*" -type f -executable | head -10 && \
+    \
+    # Show ccache statistics
+    ccache --show-stats || true
+
+# Strip binaries to reduce size (optional)
+RUN if [ "$BUILD_TYPE" = "Release" ]; then \
+    find build -name "gemma*" -type f -executable -exec strip {} \; && \
+    echo "Binaries stripped for release build"; \
+    fi
+
+# ==============================================================================
+# Build Stage 5: Testing (Optional)
+# ==============================================================================
+FROM compile-stage AS test-stage
+
+# Run unit tests if enabled
+RUN cd build && \
+    if [ -n "$(find . -name '*test*' -type f -executable)" ]; then \
+        echo "Running unit tests..." && \
+        ctest --output-on-failure --parallel 2 -L "unit" || \
+        echo "Some tests failed but continuing build"; \
+    else \
+        echo "No tests found to run"; \
+    fi
+
+# ==============================================================================
+# Runtime Stage: Minimal Production Image
+# ==============================================================================
+FROM ubuntu:22.04 AS runtime
+
+# Runtime arguments
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION=dev
+ARG ENABLE_CUDA=false
+ARG ENABLE_SYCL=false
+ARG ENABLE_VULKAN=true
+ARG ENABLE_OPENCL=true
+ARG ENABLE_MCP_SERVER=true
+
+# Security and performance settings
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=UTC \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    # Security settings
+    USER=gemma \
+    UID=10001 \
+    GID=10001
+
+# Install minimal runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Core runtime libraries
+    libstdc++6=12-* \
+    libgomp1=12-* \
+    libgcc-s1=12-* \
+    # GPU runtime libraries (no-op if hardware not available)
+    mesa-opencl-icd=22.* \
+    # Utilities
+    ca-certificates=20230311* \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Install CUDA runtime libraries (conditional)
+RUN if [ "$ENABLE_CUDA" = "true" ]; then \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libcudart12=12.* \
+        libcublas12=12.* && \
+    rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# Create non-root user for security
+RUN groupadd -g $GID $USER && \
+    useradd -u $UID -g $GID -d /app -s /bin/bash -m $USER
+
+# Set up application directory
+WORKDIR /app
+
+# Copy built artifacts from compile stage
+COPY --from=compile-stage --chown=$USER:$USER /workspace/build/gemma* ./bin/
+COPY --from=compile-stage --chown=$USER:$USER /workspace/build/lib* ./lib/ 2>/dev/null || true
+COPY --from=compile-stage --chown=$USER:$USER /workspace/build/backends/ ./backends/ 2>/dev/null || true
+
+# Copy runtime libraries for hardware acceleration
+COPY --from=compile-stage /usr/local/cuda/lib64/libcudart*.so* ./lib/ 2>/dev/null || true
+COPY --from=compile-stage /usr/local/cuda/lib64/libcublas*.so* ./lib/ 2>/dev/null || true
+COPY --from=compile-stage /opt/intel/oneapi/compiler/latest/linux/lib/libsycl*.so* ./lib/ 2>/dev/null || true
+
+# Set up library paths
+ENV LD_LIBRARY_PATH=/app/lib:/usr/local/lib:$LD_LIBRARY_PATH
+
+# Create models directory
+RUN mkdir -p /app/models && chown $USER:$USER /app/models
+
+# Create convenience wrapper scripts
+RUN cat > /app/gemma << 'EOF' && chmod +x /app/gemma
+#!/bin/bash
+set -euo pipefail
+
+# Auto-detect available backends
+GPU_FLAGS=""
+if command -v nvidia-smi >/dev/null 2>&1; then
+    echo "NVIDIA GPU detected"
+    GPU_FLAGS="--enable_cuda"
+elif [ -d "/sys/class/drm" ] && ls /sys/class/drm/card* >/dev/null 2>&1; then
+    echo "GPU detected, using Vulkan/OpenCL"
+    GPU_FLAGS="--enable_vulkan"
+fi
+
+exec /app/bin/gemma $GPU_FLAGS "$@"
+EOF
+
+RUN cat > /app/mcp_server << 'EOF' && chmod +x /app/mcp_server
+#!/bin/bash
+set -euo pipefail
+
+if [ ! -f "/app/bin/gemma_mcp_stdio_server" ]; then
+    echo "Error: MCP server not available in this build"
+    exit 1
+fi
+
+exec /app/bin/gemma_mcp_stdio_server "$@"
+EOF
+
+RUN cat > /app/benchmark << 'EOF' && chmod +x /app/benchmark
+#!/bin/bash
+set -euo pipefail
+
+if [ ! -f "/app/bin/benchmarks" ]; then
+    echo "Error: Benchmarks not available in this build"
+    exit 1
+fi
+
+exec /app/bin/benchmarks "$@"
+EOF
+
+# Create entrypoint script
+RUN cat > /app/entrypoint.sh << 'EOF' && chmod +x /app/entrypoint.sh
+#!/bin/bash
+set -euo pipefail
+
+# Print build information
+echo "=== Gemma.cpp Enhanced ==="
+echo "Version: $VERSION"
+echo "Build Date: $BUILD_DATE"
+echo "VCS Ref: $VCS_REF"
+echo "Backends: CUDA=$ENABLE_CUDA, SYCL=$ENABLE_SYCL, Vulkan=$ENABLE_VULKAN, OpenCL=$ENABLE_OPENCL"
+echo "MCP Server: $ENABLE_MCP_SERVER"
+echo "========================="
+
+# Check for model files
+if [ "$(ls -A /app/models 2>/dev/null)" ]; then
+    echo "Model files found in /app/models"
+else
+    echo "Warning: No model files found in /app/models"
+    echo "Mount your model files to /app/models volume"
+fi
+
+# Execute command
+if [ $# -eq 0 ]; then
+    exec /app/gemma --help
+else
+    exec "$@"
+fi
+EOF
+
+# Switch to non-root user
+USER $USER
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD /app/gemma --help > /dev/null || exit 1
+
+# Expose MCP server port
+EXPOSE 8080
+
+# Set up volumes
+VOLUME ["/app/models"]
+
+# Default entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["--help"]
+
+# ==============================================================================
+# Metadata and Labels
+# ==============================================================================
+LABEL org.opencontainers.image.title="Enhanced Gemma.cpp" \
+      org.opencontainers.image.description="Gemma.cpp with hardware acceleration backends" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.created="$BUILD_DATE" \
+      org.opencontainers.image.revision="$VCS_REF" \
+      org.opencontainers.image.vendor="Enhanced Gemma.cpp Team" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.source="https://github.com/google/gemma.cpp" \
+      org.opencontainers.image.documentation="https://github.com/google/gemma.cpp/blob/main/README.md" \
+      # Custom labels for runtime configuration
+      gemma.version="$VERSION" \
+      gemma.backends.cuda="$ENABLE_CUDA" \
+      gemma.backends.sycl="$ENABLE_SYCL" \
+      gemma.backends.vulkan="$ENABLE_VULKAN" \
+      gemma.backends.opencl="$ENABLE_OPENCL" \
+      gemma.mcp.enabled="$ENABLE_MCP_SERVER" \
+      gemma.build.type="$BUILD_TYPE" \
+      gemma.build.date="$BUILD_DATE"

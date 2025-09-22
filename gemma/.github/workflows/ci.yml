@@ -1,0 +1,525 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'feature/*', 'refactor/*' ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  CMAKE_VERSION: 3.24.0
+  BUILD_TYPE: Release
+  CACHE_VERSION: v1
+
+jobs:
+  # ===========================================================================
+  # PRE-FLIGHT CHECKS
+  # ===========================================================================
+
+  pre-flight:
+    name: Pre-flight Checks
+    runs-on: ubuntu-latest
+    outputs:
+      should-build-linux: ${{ steps.changes.outputs.cpp-files == 'true' || steps.changes.outputs.cmake-files == 'true' }}
+      should-build-windows: ${{ steps.changes.outputs.cpp-files == 'true' || steps.changes.outputs.cmake-files == 'true' }}
+      should-build-macos: ${{ steps.changes.outputs.cpp-files == 'true' || steps.changes.outputs.cmake-files == 'true' }}
+      should-test: ${{ steps.changes.outputs.test-files == 'true' || steps.changes.outputs.cpp-files == 'true' }}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Detect Changes
+      uses: dorny/paths-filter@v2
+      id: changes
+      with:
+        filters: |
+          cpp-files:
+            - '**/*.cpp'
+            - '**/*.cc'
+            - '**/*.h'
+            - '**/*.hpp'
+          cmake-files:
+            - '**/CMakeLists.txt'
+            - '**/*.cmake'
+            - 'CMakePresets.json'
+          test-files:
+            - 'tests/**'
+          docs:
+            - 'docs/**'
+            - '*.md'
+
+    - name: Validate Project Structure
+      run: |
+        echo "Validating project structure..."
+        required_dirs=(
+          "gemma.cpp"
+          "backends"
+          "mcp"
+          "tests"
+        )
+
+        for dir in "${required_dirs[@]}"; do
+          if [ ! -d "$dir" ]; then
+            echo "❌ Missing required directory: $dir"
+            exit 1
+          fi
+          echo "✅ Found directory: $dir"
+        done
+
+        required_files=(
+          "CMakeLists.txt"
+          "README.md"
+          ".gitignore"
+        )
+
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "❌ Missing required file: $file"
+            exit 1
+          fi
+          echo "✅ Found file: $file"
+        done
+
+  # ===========================================================================
+  # LINUX BUILD MATRIX
+  # ===========================================================================
+
+  build-linux:
+    name: Linux Build
+    runs-on: ubuntu-latest
+    needs: pre-flight
+    if: needs.pre-flight.outputs.should-build-linux == 'true'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "GCC Release"
+            cc: "gcc-11"
+            cxx: "g++-11"
+            build_type: "Release"
+            cmake_flags: "-DGEMMA_BUILD_TESTS=ON -DGEMMA_BUILD_MCP_SERVER=ON"
+
+          - name: "Clang Release"
+            cc: "clang-14"
+            cxx: "clang++-14"
+            build_type: "Release"
+            cmake_flags: "-DGEMMA_BUILD_TESTS=ON -DGEMMA_BUILD_MCP_SERVER=ON"
+
+          - name: "GCC Debug"
+            cc: "gcc-11"
+            cxx: "g++-11"
+            build_type: "Debug"
+            cmake_flags: "-DGEMMA_BUILD_TESTS=ON -DGEMMA_ENABLE_COVERAGE=ON"
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          ninja-build \
+          ${{ matrix.config.cc }} \
+          ${{ matrix.config.cxx }} \
+          libbenchmark-dev \
+          libgtest-dev \
+          pkg-config
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: ${{ env.CMAKE_VERSION }}
+
+    - name: Cache Dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          build/_deps
+          ~/.cache/vcpkg
+        key: linux-${{ matrix.config.cc }}-${{ env.CACHE_VERSION }}-${{ hashFiles('**/CMakeLists.txt', 'vcpkg.json') }}
+        restore-keys: |
+          linux-${{ matrix.config.cc }}-${{ env.CACHE_VERSION }}-
+          linux-${{ matrix.config.cc }}-
+
+    - name: Configure CMake
+      env:
+        CC: ${{ matrix.config.cc }}
+        CXX: ${{ matrix.config.cxx }}
+      run: |
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }} \
+          ${{ matrix.config.cmake_flags }}
+
+    - name: Build
+      run: cmake --build build --parallel $(nproc)
+
+    - name: Run Unit Tests
+      if: matrix.config.build_type == 'Release'
+      run: |
+        cd build
+        ctest --output-on-failure --parallel $(nproc)
+
+    - name: Generate Coverage Report
+      if: matrix.config.build_type == 'Debug'
+      run: |
+        sudo apt-get install -y lcov
+        lcov --capture --directory build --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' --output-file coverage.info
+        lcov --list coverage.info
+
+    - name: Upload Coverage
+      if: matrix.config.build_type == 'Debug'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.info
+        flags: linux
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      if: matrix.config.build_type == 'Release'
+      with:
+        name: linux-${{ matrix.config.cc }}-binaries
+        path: |
+          build/gemma
+          build/gemma_mcp_server
+          build/tests/test_*
+        retention-days: 7
+
+  # ===========================================================================
+  # WINDOWS BUILD MATRIX
+  # ===========================================================================
+
+  build-windows:
+    name: Windows Build
+    runs-on: windows-latest
+    needs: pre-flight
+    if: needs.pre-flight.outputs.should-build-windows == 'true'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "MSVC 2022"
+            generator: "Visual Studio 17 2022"
+            arch: "x64"
+            build_type: "Release"
+            cmake_flags: "-DGEMMA_BUILD_TESTS=ON -DGEMMA_BUILD_MCP_SERVER=ON"
+
+          - name: "MSVC 2022 Debug"
+            generator: "Visual Studio 17 2022"
+            arch: "x64"
+            build_type: "Debug"
+            cmake_flags: "-DGEMMA_BUILD_TESTS=ON"
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup MSVC
+      uses: microsoft/setup-msbuild@v1.3
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: ${{ env.CMAKE_VERSION }}
+
+    - name: Cache Dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          build/_deps
+          ${{ env.VCPKG_ROOT }}
+        key: windows-${{ matrix.config.arch }}-${{ env.CACHE_VERSION }}-${{ hashFiles('**/CMakeLists.txt', 'vcpkg.json') }}
+        restore-keys: |
+          windows-${{ matrix.config.arch }}-${{ env.CACHE_VERSION }}-
+          windows-${{ matrix.config.arch }}-
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -G "${{ matrix.config.generator }}" -A ${{ matrix.config.arch }} `
+          -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }} `
+          ${{ matrix.config.cmake_flags }}
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.config.build_type }} --parallel
+
+    - name: Run Tests
+      if: matrix.config.build_type == 'Release'
+      run: |
+        cd build
+        ctest -C ${{ matrix.config.build_type }} --output-on-failure --parallel
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      if: matrix.config.build_type == 'Release'
+      with:
+        name: windows-${{ matrix.config.arch }}-binaries
+        path: |
+          build/${{ matrix.config.build_type }}/gemma.exe
+          build/${{ matrix.config.build_type }}/gemma_mcp_server.exe
+          build/tests/${{ matrix.config.build_type }}/test_*.exe
+        retention-days: 7
+
+  # ===========================================================================
+  # MACOS BUILD MATRIX
+  # ===========================================================================
+
+  build-macos:
+    name: macOS Build
+    runs-on: macos-latest
+    needs: pre-flight
+    if: needs.pre-flight.outputs.should-build-macos == 'true'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "Xcode Release"
+            build_type: "Release"
+            cmake_flags: "-DGEMMA_BUILD_TESTS=ON -DGEMMA_BUILD_MCP_SERVER=ON"
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        brew install ninja pkg-config
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: ${{ env.CMAKE_VERSION }}
+
+    - name: Cache Dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          build/_deps
+          ~/Library/Caches/vcpkg
+        key: macos-${{ env.CACHE_VERSION }}-${{ hashFiles('**/CMakeLists.txt', 'vcpkg.json') }}
+        restore-keys: |
+          macos-${{ env.CACHE_VERSION }}-
+          macos-
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }} \
+          ${{ matrix.config.cmake_flags }}
+
+    - name: Build
+      run: cmake --build build --parallel $(sysctl -n hw.logicalcpu)
+
+    - name: Run Tests
+      run: |
+        cd build
+        ctest --output-on-failure --parallel $(sysctl -n hw.logicalcpu)
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: macos-binaries
+        path: |
+          build/gemma
+          build/gemma_mcp_server
+          build/tests/test_*
+        retention-days: 7
+
+  # ===========================================================================
+  # HARDWARE ACCELERATION TESTS
+  # ===========================================================================
+
+  test-cuda:
+    name: CUDA Backend Test
+    runs-on: ubuntu-latest
+    container:
+      image: nvidia/cuda:12.0-devel-ubuntu20.04
+    needs: pre-flight
+    if: needs.pre-flight.outputs.should-test == 'true'
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        apt-get update
+        apt-get install -y \
+          gcc-11 g++-11 \
+          cmake ninja-build \
+          pkg-config
+
+    - name: Configure with CUDA
+      env:
+        CC: gcc-11
+        CXX: g++-11
+      run: |
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DGEMMA_BUILD_CUDA_BACKEND=ON \
+          -DGEMMA_BUILD_TESTS=ON
+
+    - name: Build CUDA Backend
+      run: cmake --build build --target gemma_cuda --parallel
+
+    - name: Test CUDA Compilation
+      run: |
+        if [ -f "build/backends/cuda/libgemma_cuda.a" ]; then
+          echo "✅ CUDA backend compiled successfully"
+        else
+          echo "❌ CUDA backend compilation failed"
+          exit 1
+        fi
+
+  # ===========================================================================
+  # INTEGRATION & PERFORMANCE TESTS
+  # ===========================================================================
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [build-linux]
+    if: needs.pre-flight.outputs.should-test == 'true'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download Linux Binaries
+      uses: actions/download-artifact@v3
+      with:
+        name: linux-gcc-11-binaries
+        path: ./binaries
+
+    - name: Make Binaries Executable
+      run: chmod +x ./binaries/*
+
+    - name: Run MCP Server Integration Test
+      run: |
+        echo "Testing MCP server startup..."
+        timeout 10s ./binaries/gemma_mcp_server --help || true
+
+    - name: Run Performance Benchmarks
+      run: |
+        echo "Running basic performance tests..."
+        if [ -f "./binaries/gemma" ]; then
+          ./binaries/gemma --help
+        fi
+
+  # ===========================================================================
+  # SECURITY & QUALITY SCANS
+  # ===========================================================================
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: pre-flight
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run CodeQL Analysis
+      uses: github/codeql-action/init@v2
+      with:
+        languages: cpp
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v2
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
+    - name: Check for Secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+
+  # ===========================================================================
+  # DOCUMENTATION & RELEASE
+  # ===========================================================================
+
+  build-docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Doxygen
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y doxygen graphviz
+
+    - name: Generate Documentation
+      run: |
+        if [ -f "Doxyfile" ]; then
+          doxygen Doxyfile
+        else
+          echo "No Doxyfile found, skipping documentation generation"
+        fi
+
+    - name: Deploy to GitHub Pages
+      if: success()
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/html
+
+  # ===========================================================================
+  # DEPLOYMENT & RELEASE
+  # ===========================================================================
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-windows, build-macos, integration-tests]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Create Release Archive
+      run: |
+        mkdir -p release
+
+        # Linux binaries
+        if [ -d "linux-gcc-11-binaries" ]; then
+          tar -czf release/gemma-cpp-enhanced-linux-x64.tar.gz -C linux-gcc-11-binaries .
+        fi
+
+        # Windows binaries
+        if [ -d "windows-x64-binaries" ]; then
+          cd windows-x64-binaries && zip -r ../release/gemma-cpp-enhanced-windows-x64.zip . && cd ..
+        fi
+
+        # macOS binaries
+        if [ -d "macos-binaries" ]; then
+          tar -czf release/gemma-cpp-enhanced-macos.tar.gz -C macos-binaries .
+        fi
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*
+        draft: false
+        prerelease: ${{ contains(github.ref, '-') }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

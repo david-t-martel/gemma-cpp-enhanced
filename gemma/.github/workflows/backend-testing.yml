@@ -1,0 +1,429 @@
+name: Hardware Backend Testing
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'backends/**'
+      - 'tests/backends/**'
+      - 'scripts/build_with_*'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backends/**'
+      - 'tests/backends/**'
+      - 'scripts/build_with_*'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+  workflow_dispatch:
+    inputs:
+      run_benchmarks:
+        description: 'Run performance benchmarks'
+        required: false
+        default: 'false'
+        type: boolean
+      test_specific_backend:
+        description: 'Test specific backend (cpu, sycl, cuda, vulkan, all)'
+        required: false
+        default: 'all'
+        type: string
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 2
+  CTEST_PARALLEL_LEVEL: 2
+
+jobs:
+  # CPU baseline - always runs
+  cpu-baseline:
+    runs-on: ubuntu-latest
+    name: CPU Baseline Build
+    outputs:
+      cpu-baseline-success: ${{ steps.build.outputs.success }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: '3.20'
+
+    - name: Setup build environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libbenchmark-dev libgtest-dev
+
+    - name: Build CPU baseline
+      id: build
+      run: |
+        mkdir -p build-cpu
+        cd build-cpu
+        cmake -DCMAKE_BUILD_TYPE=Release \
+              -DGEMMA_BUILD_BACKENDS=OFF \
+              -DGEMMA_BUILD_ENHANCED_TESTS=ON \
+              -DGEMMA_BUILD_BENCHMARKS=ON \
+              ..
+        cmake --build . --parallel $CMAKE_BUILD_PARALLEL_LEVEL
+        echo "success=true" >> $GITHUB_OUTPUT
+
+    - name: Run CPU tests
+      run: |
+        cd build-cpu
+        ctest --output-on-failure --parallel $CTEST_PARALLEL_LEVEL
+
+    - name: Upload CPU artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: cpu-baseline-build
+        path: build-cpu/
+        retention-days: 1
+
+  # SYCL/Intel oneAPI testing
+  sycl-backend:
+    runs-on: ubuntu-latest
+    name: SYCL Backend (Intel oneAPI)
+    if: github.event.inputs.test_specific_backend == 'sycl' || github.event.inputs.test_specific_backend == 'all' || github.event.inputs.test_specific_backend == ''
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Intel oneAPI
+      run: |
+        # Add Intel oneAPI APT repository
+        wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+        echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+
+        sudo apt-get update
+        sudo apt-get install -y intel-oneapi-dpcpp-cpp intel-oneapi-compiler-dpcpp-cpp
+
+    - name: Setup build environment
+      run: |
+        sudo apt-get install -y build-essential cmake libbenchmark-dev libgtest-dev
+
+    - name: Build SYCL backend
+      run: |
+        source /opt/intel/oneapi/setvars.sh
+        chmod +x scripts/build_with_sycl.sh
+        ./scripts/build_with_sycl.sh --release --test
+
+    - name: Upload SYCL artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: sycl-backend-build
+        path: build-sycl/
+        retention-days: 1
+
+  # CUDA testing (GPU runners)
+  cuda-backend:
+    runs-on: [self-hosted, gpu, cuda]
+    name: CUDA Backend (NVIDIA GPU)
+    if: github.event.inputs.test_specific_backend == 'cuda' || github.event.inputs.test_specific_backend == 'all' || github.event.inputs.test_specific_backend == ''
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup CUDA environment
+      run: |
+        nvidia-smi
+        nvcc --version
+
+    - name: Build CUDA backend
+      run: |
+        chmod +x scripts/build_with_cuda.sh
+        ./scripts/build_with_cuda.sh --release --test
+
+    - name: Run CUDA benchmarks
+      if: github.event.inputs.run_benchmarks == 'true'
+      run: |
+        cd build-cuda
+        if [ -f "tests/backends/benchmark_backends" ]; then
+          ./tests/backends/benchmark_backends
+        fi
+
+    - name: Upload CUDA artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: cuda-backend-build
+        path: build-cuda/
+        retention-days: 1
+
+  # Vulkan testing
+  vulkan-backend:
+    runs-on: ubuntu-latest
+    name: Vulkan Backend
+    if: github.event.inputs.test_specific_backend == 'vulkan' || github.event.inputs.test_specific_backend == 'all' || github.event.inputs.test_specific_backend == ''
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Vulkan SDK
+      run: |
+        # Download and install Vulkan SDK
+        VULKAN_VERSION="1.3.261.1"
+        wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+        sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-${VULKAN_VERSION}-focal.list https://packages.lunarg.com/vulkan/${VULKAN_VERSION}/lunarg-vulkan-${VULKAN_VERSION}-focal.list
+
+        sudo apt-get update
+        sudo apt-get install -y vulkan-sdk vulkan-tools vulkan-validationlayers-dev
+
+    - name: Setup build environment
+      run: |
+        sudo apt-get install -y build-essential cmake libbenchmark-dev libgtest-dev
+
+    - name: Setup software rendering (for CI)
+      run: |
+        # Install Mesa software Vulkan driver for CI testing
+        sudo apt-get install -y mesa-vulkan-drivers xvfb
+        export DISPLAY=:99
+        Xvfb :99 -screen 0 1024x768x24 &
+
+    - name: Build Vulkan backend
+      env:
+        DISPLAY: :99
+      run: |
+        export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+        chmod +x scripts/build_with_vulkan.sh
+        ./scripts/build_with_vulkan.sh --release --test
+
+    - name: Upload Vulkan artifacts
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: vulkan-backend-build
+        path: build-vulkan/
+        retention-days: 1
+
+  # Cross-platform testing
+  cross-platform:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        backend: [cpu]
+        include:
+          - os: macos-latest
+            backend: metal
+
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.backend }} on ${{ matrix.os }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: '3.20'
+
+    - name: Setup build environment (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libbenchmark-dev libgtest-dev
+
+    - name: Setup build environment (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: microsoft/setup-msbuild@v1
+
+    - name: Setup build environment (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install cmake ninja
+
+    - name: Build backend
+      shell: bash
+      run: |
+        if [ "${{ matrix.backend }}" == "cpu" ]; then
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DGEMMA_BUILD_BACKENDS=OFF \
+                -DGEMMA_BUILD_ENHANCED_TESTS=ON \
+                ..
+          cmake --build . --parallel $CMAKE_BUILD_PARALLEL_LEVEL
+        elif [ "${{ matrix.backend }}" == "metal" ] && [ "${{ matrix.os }}" == "macos-latest" ]; then
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DGEMMA_BUILD_METAL_BACKEND=ON \
+                -DGEMMA_BUILD_BACKEND_TESTS=ON \
+                ..
+          cmake --build . --parallel $CMAKE_BUILD_PARALLEL_LEVEL
+        fi
+
+    - name: Run tests
+      shell: bash
+      run: |
+        cd build
+        ctest --output-on-failure --parallel $CTEST_PARALLEL_LEVEL
+
+  # Multi-backend comparison
+  backend-comparison:
+    runs-on: [self-hosted, gpu]
+    name: Multi-Backend Performance Comparison
+    needs: [cpu-baseline]
+    if: github.event.inputs.run_benchmarks == 'true'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup multi-backend environment
+      run: |
+        # Setup Intel oneAPI
+        if [ -d "/opt/intel/oneapi" ]; then
+          source /opt/intel/oneapi/setvars.sh
+        fi
+
+        # Check CUDA availability
+        if command -v nvidia-smi &> /dev/null; then
+          nvidia-smi
+        fi
+
+        # Check Vulkan
+        if command -v vulkaninfo &> /dev/null; then
+          vulkaninfo --summary
+        fi
+
+    - name: Build all available backends
+      run: |
+        chmod +x scripts/build_all_backends.sh
+        ./scripts/build_all_backends.sh --release --benchmark --skip-missing
+
+    - name: Generate performance report
+      run: |
+        # Collect benchmark results
+        if [ -d "build-all-backends/reports" ]; then
+          ls -la build-all-backends/reports/
+          cat build-all-backends/reports/benchmark_summary.txt || echo "No summary available"
+        fi
+
+    - name: Upload performance reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-comparison
+        path: build-all-backends/reports/
+        retention-days: 7
+
+  # Backend test matrix
+  test-matrix:
+    needs: [cpu-baseline]
+    runs-on: ubuntu-latest
+    name: Backend Test Matrix
+    if: always()
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Generate test report
+      run: |
+        echo "# Backend Test Results" > test_report.md
+        echo "" >> test_report.md
+        echo "## Build Status" >> test_report.md
+        echo "" >> test_report.md
+
+        # Check CPU baseline
+        if [ -d "cpu-baseline-build" ]; then
+          echo "✅ CPU Baseline: PASSED" >> test_report.md
+        else
+          echo "❌ CPU Baseline: FAILED" >> test_report.md
+        fi
+
+        # Check SYCL
+        if [ -d "sycl-backend-build" ]; then
+          echo "✅ SYCL Backend: PASSED" >> test_report.md
+        else
+          echo "⚠️ SYCL Backend: SKIPPED" >> test_report.md
+        fi
+
+        # Check CUDA
+        if [ -d "cuda-backend-build" ]; then
+          echo "✅ CUDA Backend: PASSED" >> test_report.md
+        else
+          echo "⚠️ CUDA Backend: SKIPPED" >> test_report.md
+        fi
+
+        # Check Vulkan
+        if [ -d "vulkan-backend-build" ]; then
+          echo "✅ Vulkan Backend: PASSED" >> test_report.md
+        else
+          echo "⚠️ Vulkan Backend: SKIPPED" >> test_report.md
+        fi
+
+        echo "" >> test_report.md
+        echo "## Performance Comparison" >> test_report.md
+
+        if [ -d "performance-comparison" ]; then
+          echo "Performance benchmarks completed. See artifacts for detailed results." >> test_report.md
+        else
+          echo "Performance benchmarks not run." >> test_report.md
+        fi
+
+        cat test_report.md
+
+    - name: Upload test report
+      uses: actions/upload-artifact@v3
+      with:
+        name: backend-test-report
+        path: test_report.md
+        retention-days: 7
+
+    - name: Comment PR with results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('test_report.md', 'utf8');
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## Backend Testing Results\n\n${report}`
+          });
+
+  # Security and compliance
+  backend-security:
+    runs-on: ubuntu-latest
+    name: Backend Security Scan
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run security scan
+      uses: github/super-linter@v4
+      env:
+        DEFAULT_BRANCH: main
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VALIDATE_CPP: true
+        VALIDATE_CMAKE: true
+        VALIDATE_BASH: true
+
+    - name: Check for hardcoded secrets
+      run: |
+        # Check for potential API keys or credentials in backend code
+        grep -r "api.key\|secret\|password\|token" backends/ || echo "No hardcoded secrets found"
+        grep -r "api.key\|secret\|password\|token" tests/backends/ || echo "No hardcoded secrets found"

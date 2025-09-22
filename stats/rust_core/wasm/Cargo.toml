@@ -1,0 +1,108 @@
+[package]
+name = "gemma-wasm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "WebAssembly bindings for Gemma inference engine"
+keywords = ["wasm", "webassembly", "inference", "gemma", "browser"]
+categories = ["wasm", "science", "web-programming"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Workspace WASM dependencies
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+js-sys.workspace = true
+
+# Web APIs
+web-sys = { workspace = true, features = [
+    "console",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "Window",
+    "Performance",
+    "Worker",
+    "MessageEvent",
+    "MessagePort",
+    "Blob",
+    "File",
+    "FileReader",
+    "Response",
+    "Request",
+    "Headers",
+    "WebSocket",
+    "CloseEvent",
+    "ErrorEvent",
+    "MessageEvent",
+    "BinaryType",
+] }
+
+# Core dependencies (WASM-compatible versions)
+serde.workspace = true
+serde_json.workspace = true
+postcard.workspace = true
+
+# Async and futures
+futures.workspace = true
+futures-util.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Logging for WASM
+wasm-logger = "0.2"
+log = "0.4"
+
+# WASM-specific utilities
+gloo-utils = "0.2"
+gloo-timers = { version = "0.3", features = ["futures"] }
+gloo-worker = "0.4"
+
+# Inference engine (with WASM features)
+gemma-inference = { path = "../inference", default-features = false, features = ["simd"] }
+
+# Math operations (WASM-compatible)
+nalgebra = { workspace = true, default-features = false, features = ["std"] }
+ndarray = { workspace = true, default-features = false }
+
+# Memory management
+wee_alloc = { version = "0.4", optional = true }
+
+# SIMD support for WASM
+wide = { workspace = true, default-features = false }
+
+# Serialization optimized for WASM
+rmp-serde.workspace = true
+
+[dependencies.uuid]
+workspace = true
+features = [
+    "v4",
+    "wasm-bindgen",
+]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[features]
+default = ["console_error_panic_hook"]
+console_error_panic_hook = ["dep:console_error_panic_hook"]
+wee_alloc = ["dep:wee_alloc"]
+
+# Inference features
+simd = ["gemma-inference/simd"]
+fast-inference = ["simd"]
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Oz", "--enable-simd"]
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false

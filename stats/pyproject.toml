@@ -1,0 +1,213 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gemma-chatbot"
+version = "0.1.0"
+description = "Local LLM CLI/HTTP chatbot using Google Gemma with PyTorch and Rust extensions"
+authors = [{name = "Development Team"}]
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+keywords = ["llm", "gemma", "pytorch", "mcp", "rust", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    # Core ML dependencies
+    "torch>=2.0.0",
+    "transformers>=4.35.0",
+    "accelerate>=0.24.0",
+    "tokenizers>=0.15.0",
+    "sentencepiece>=0.1.99",
+    "bitsandbytes>=0.41.0",
+    "safetensors>=0.4.0",
+    "datasets>=2.14.0",
+    # Web framework
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "websockets>=12.0",
+    "aiofiles>=23.2.0",
+    "python-multipart>=0.0.6",
+    # CLI and UI
+    "typer>=0.9.0",
+    "rich>=13.5.0",
+    "tqdm>=4.66.0",
+    # Data validation
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    # HTTP client
+    "httpx>=0.25.0",
+    "requests>=2.31.0",
+    # YAML configuration
+    "pyyaml>=6.0.0",
+    # MCP server support (install separately with: uv pip install mcp)
+    "anyio>=4.0.0",
+    "jsonschema>=4.17.0",
+    # System utilities
+    "psutil>=5.9.0",
+    "aiohttp>=3.12.15",
+]
+
+[dependency-groups]
+dev = [
+    # Testing
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.11.0",
+    "pytest-benchmark>=4.0.0",
+
+    # Code quality
+    "ruff>=0.1.6",
+    "mypy>=1.5.0",
+    "pre-commit>=3.3.0",
+
+    # Development tools
+    "ipython>=8.14.0",
+    "jupyter>=1.0.0",
+    "maturin>=1.4.0",
+
+    # Type stubs
+    "types-requests>=2.31.0",
+    "types-setuptools>=69.0.0",
+]
+
+training = [
+    "wandb>=0.15.0",
+    "tensorboard>=2.14.0",
+    "peft>=0.7.0",
+    "trl>=0.7.0",
+    "deepspeed>=0.12.0",
+]
+
+cuda = [
+    "nvidia-ml-py>=12.535.0",
+    "triton>=2.1.0",
+    "flash-attn>=2.0.0",
+]
+
+mcp = [
+    # MCP dependencies - install manually if needed
+    "uvloop>=0.17.0; platform_system != 'Windows'",
+    "starlette>=0.27.0",
+    "sse-starlette>=1.6.0",
+]
+
+rag = [
+    # RAG-specific Python dependencies (for Python RAG components)
+    "redis>=5.0.0",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "sentence-transformers>=2.2.0",
+    "chromadb>=0.4.0",
+]
+
+docker = [
+    "gunicorn>=21.2.0",
+    "supervisor>=4.2.0",
+]
+
+gcp = [
+    # Google Cloud Platform dependencies
+    "google-cloud-storage>=2.10.0",
+    "google-auth>=2.20.0",
+    "google-api-core>=2.11.0",
+    # Hugging Face Hub for model downloads
+    "huggingface-hub>=0.17.0",
+    # Additional HTTP client for downloads
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+gemma-cli = "src.cli.main:app"
+gemma-server = "src.server.main:main"
+
+# Setuptools configuration
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["*"]
+
+# Maturin configuration for Rust bindings (when Cargo.toml exists)
+# Uncomment and use maturin build backend when Rust extensions are ready
+# [tool.maturin]
+# module-name = "gemma_chatbot._rust"
+# python-source = "src"
+# bindings = "pyo3"
+# manifest-path = "rust_extensions/Cargo.toml"
+
+[tool.ruff]
+# Configuration moved to ruff.toml for better organization
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+strict = true
+show_error_codes = true
+show_column_numbers = true
+
+# Per-module configuration
+[[tool.mypy.overrides]]
+module = [
+    "torch.*",
+    "transformers.*",
+    "accelerate.*",
+    "bitsandbytes.*",
+    "mcp.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml:coverage.xml",
+    "--cov-fail-under=85",
+]
+markers = [
+    "slow: marks tests as slow",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "gpu: marks tests that require GPU",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/migrations/*",
+    "*/examples/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+fail_under = 85
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

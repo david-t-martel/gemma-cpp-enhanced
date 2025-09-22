@@ -1,0 +1,209 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "windows-base",
+            "hidden": true,
+            "generator": "Visual Studio 17 2022",
+            "toolset": "v143",
+            "binaryDir": "${sourceDir}/build-${presetName}",
+            "cacheVariables": {
+                "CMAKE_CXX_STANDARD": "20",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "GEMMA_ENABLE_PCH": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            }
+        },
+        {
+            "name": "linux-base",
+            "hidden": true,
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build-${presetName}",
+            "cacheVariables": {
+                "CMAKE_CXX_STANDARD": "20",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "GEMMA_ENABLE_PCH": "ON"
+            },
+            "condition": {
+                "type": "not",
+                "condition": {
+                    "type": "equals",
+                    "lhs": "${hostSystemName}",
+                    "rhs": "Windows"
+                }
+            }
+        },
+        {
+            "name": "windows-fast-debug",
+            "displayName": "Windows Fast Debug (O1 + symbols)",
+            "inherits": "windows-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "FastDebug",
+                "GEMMA_BUILD_BACKENDS": "OFF",
+                "GEMMA_ENABLE_UNITY_BUILDS": "ON",
+                "GEMMA_BUILD_ENHANCED_TESTS": "ON"
+            }
+        },
+        {
+            "name": "windows-debug",
+            "displayName": "Windows Debug (O0 + symbols)",
+            "inherits": "windows-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "GEMMA_BUILD_BACKENDS": "OFF",
+                "GEMMA_ENABLE_UNITY_BUILDS": "ON",
+                "GEMMA_BUILD_ENHANCED_TESTS": "ON"
+            }
+        },
+        {
+            "name": "windows-release-with-symbols",
+            "displayName": "Windows Release with Symbols (O2 + symbols)",
+            "inherits": "windows-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithSymbols",
+                "GEMMA_BUILD_BACKENDS": "ON",
+                "GEMMA_AUTO_DETECT_BACKENDS": "ON",
+                "GEMMA_BUILD_ENHANCED_TESTS": "ON"
+            }
+        },
+        {
+            "name": "windows-release",
+            "displayName": "Windows Release (O3 production)",
+            "inherits": "windows-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "GEMMA_BUILD_BACKENDS": "ON",
+                "GEMMA_AUTO_DETECT_BACKENDS": "ON",
+                "GEMMA_ENABLE_LTO": "ON",
+                "GEMMA_BUILD_ENHANCED_TESTS": "OFF"
+            }
+        },
+        {
+            "name": "windows-original",
+            "displayName": "Windows Original Gemma.cpp (no enhancements)",
+            "inherits": "windows-base",
+            "binaryDir": "${sourceDir}/gemma.cpp/build-original",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "GEMMA_ENABLE_TESTS": "ON"
+            }
+        },
+        {
+            "name": "linux-fast-debug",
+            "displayName": "Linux Fast Debug (O1 + symbols)",
+            "inherits": "linux-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "FastDebug",
+                "GEMMA_BUILD_BACKENDS": "OFF",
+                "GEMMA_ENABLE_UNITY_BUILDS": "ON",
+                "GEMMA_BUILD_ENHANCED_TESTS": "ON"
+            }
+        },
+        {
+            "name": "linux-debug",
+            "displayName": "Linux Debug (O0 + symbols)",
+            "inherits": "linux-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "GEMMA_BUILD_BACKENDS": "OFF",
+                "GEMMA_ENABLE_UNITY_BUILDS": "ON",
+                "GEMMA_BUILD_ENHANCED_TESTS": "ON"
+            }
+        },
+        {
+            "name": "linux-release-with-symbols",
+            "displayName": "Linux Release with Symbols (O2 + symbols)",
+            "inherits": "linux-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithSymbols",
+                "GEMMA_BUILD_BACKENDS": "ON",
+                "GEMMA_AUTO_DETECT_BACKENDS": "ON",
+                "GEMMA_BUILD_ENHANCED_TESTS": "ON"
+            }
+        },
+        {
+            "name": "linux-release",
+            "displayName": "Linux Release (O3 production)",
+            "inherits": "linux-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "GEMMA_BUILD_BACKENDS": "ON",
+                "GEMMA_AUTO_DETECT_BACKENDS": "ON",
+                "GEMMA_ENABLE_LTO": "ON",
+                "GEMMA_BUILD_ENHANCED_TESTS": "OFF"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "windows-fast-debug",
+            "configurePreset": "windows-fast-debug",
+            "configuration": "FastDebug",
+            "jobs": 0
+        },
+        {
+            "name": "windows-debug",
+            "configurePreset": "windows-debug",
+            "configuration": "Debug",
+            "jobs": 0
+        },
+        {
+            "name": "windows-release-with-symbols",
+            "configurePreset": "windows-release-with-symbols",
+            "configuration": "RelWithSymbols",
+            "jobs": 0
+        },
+        {
+            "name": "windows-release",
+            "configurePreset": "windows-release",
+            "configuration": "Release",
+            "jobs": 0
+        },
+        {
+            "name": "windows-original",
+            "configurePreset": "windows-original",
+            "configuration": "Release",
+            "jobs": 0
+        },
+        {
+            "name": "linux-fast-debug",
+            "configurePreset": "linux-fast-debug",
+            "jobs": 0
+        },
+        {
+            "name": "linux-debug",
+            "configurePreset": "linux-debug",
+            "jobs": 0
+        },
+        {
+            "name": "linux-release-with-symbols",
+            "configurePreset": "linux-release-with-symbols",
+            "jobs": 0
+        },
+        {
+            "name": "linux-release",
+            "configurePreset": "linux-release",
+            "jobs": 0
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "windows-debug-tests",
+            "configurePreset": "windows-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "linux-debug-tests",
+            "configurePreset": "linux-debug",
+            "output": {
+                "outputOnFailure": true
+            }
+        }
+    ]
+}

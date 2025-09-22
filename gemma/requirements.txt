@@ -1,0 +1,24 @@
+# Gemma CLI Wrapper - Python Dependencies
+# Required for Windows-compatible gemma CLI wrapper
+
+# Optional but recommended for colored output
+colorama>=0.4.4
+
+# Standard library modules used (included with Python):
+# - asyncio
+# - json
+# - os
+# - pathlib
+# - subprocess
+# - sys
+# - threading
+# - time
+# - datetime
+# - argparse
+# - signal
+# - re
+
+# For development/testing:
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=4.0.0

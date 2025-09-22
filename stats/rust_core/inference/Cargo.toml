@@ -1,0 +1,137 @@
+[package]
+name = "gemma-inference"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+rust-version.workspace = true
+description = "High-performance inference engine for Gemma models"
+keywords = ["inference", "ml", "gemma", "performance", "simd"]
+categories = ["algorithms", "science", "web-programming"]
+
+[lib]
+name = "gemma_inference"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Workspace dependencies
+tokio.workspace = true
+tokio-util.workspace = true
+futures.workspace = true
+futures-util.workspace = true
+async-trait.workspace = true
+rayon.workspace = true
+crossbeam.workspace = true
+crossbeam-channel.workspace = true
+crossbeam-utils.workspace = true
+parking_lot.workspace = true
+dashmap.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+rmp-serde.workspace = true
+postcard.workspace = true
+
+wide.workspace = true
+bytemuck.workspace = true
+memchr.workspace = true
+smallvec.workspace = true
+tinyvec.workspace = true
+ahash.workspace = true
+fnv.workspace = true
+once_cell.workspace = true
+
+bumpalo.workspace = true
+typed-arena.workspace = true
+
+ndarray.workspace = true
+ndarray-linalg.workspace = true
+num-traits.workspace = true
+num-complex.workspace = true
+nalgebra.workspace = true
+
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+flate2.workspace = true
+zstd.workspace = true
+lz4_flex.workspace = true
+base64.workspace = true
+
+chrono.workspace = true
+uuid.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+
+# Inference-specific dependencies
+candle-core = { workspace = true, optional = true }
+candle-nn = { workspace = true, optional = true }
+candle-transformers = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+tiktoken-rs.workspace = true
+
+# ONNX Runtime integration
+ort = { version = "2.0.0-rc.10", optional = true }
+
+# Hardware acceleration
+cudarc = { version = "0.12", features = ["std"], optional = true }
+half = { version = "2.4", features = ["serde", "bytemuck"] }
+
+# Memory mapping for large models
+memmap2 = "0.9"
+safetensors = { version = "0.4", optional = true }
+
+# Neural network specific optimizations
+accelerate-src = { version = "0.3", optional = true }
+intel-mkl-src = { version = "0.8", features = ["mkl-static-lp64-iomp"], optional = true }
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+target-lexicon = "0.12"
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+target-lexicon = "0.12"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen.workspace = true
+js-sys.workspace = true
+web-sys.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+tokio-test.workspace = true
+tempfile.workspace = true
+
+[features]
+default = ["simd", "parallel", "fast-tokenizer"]
+simd = []
+parallel = ["rayon"]
+candle = ["candle-core", "candle-nn", "candle-transformers"]
+onnx = ["ort"]
+cuda = ["cudarc"]
+mkl = ["intel-mkl-src"]
+accelerate = ["accelerate-src"]
+fast-tokenizer = ["tokenizers"]
+safetensors = ["dep:safetensors"]
+full-gpu = ["cuda", "candle"]
+full-cpu = ["mkl", "accelerate"]
+
+[[bench]]
+name = "inference_bench"
+harness = false
+required-features = ["simd"]
+
+[[bench]]
+name = "tokenizer_bench"
+harness = false
+required-features = ["fast-tokenizer"]
+
+[[bench]]
+name = "tensor_bench"
+harness = false
+required-features = ["simd", "parallel"]

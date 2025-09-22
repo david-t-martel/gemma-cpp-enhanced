@@ -1,0 +1,129 @@
+# Production Dockerfile for Gemma LLM Server
+FROM python:3.11-slim as builder
+
+# Build arguments
+ARG MODEL_NAME=microsoft/phi-2
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    cmake \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust for building extensions
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Create app directory
+WORKDIR /build
+
+# Copy dependency files
+COPY pyproject.toml .
+COPY requirements.txt .
+COPY rust_extensions/Cargo.toml rust_extensions/
+COPY rust_extensions/src rust_extensions/src/
+COPY rust_extensions/build.rs rust_extensions/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir uv && \
+    uv venv && \
+    . .venv/bin/activate && \
+    uv pip install --no-cache-dir -r requirements.txt
+
+# Build Rust extensions
+RUN . .venv/bin/activate && \
+    cd rust_extensions && \
+    maturin build --release && \
+    pip install ../target/wheels/*.whl
+
+# Download model during build (cached layer)
+COPY download_gemma_consolidated.py .
+COPY src/gcp src/gcp/
+ENV HF_HOME=/models
+RUN . .venv/bin/activate && \
+    python download_gemma_consolidated.py ${MODEL_NAME} --cache-dir /models || \
+    echo "Model download will be completed at runtime"
+
+# Production stage
+FROM python:3.11-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r gemma && useradd -r -g gemma gemma
+
+# Set up app directory
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /build/.venv /app/.venv
+
+# Copy application code
+COPY src/ /app/src/
+COPY download_gemma_consolidated.py /app/
+COPY main.py /app/
+
+# Copy models (if downloaded during build)
+COPY --from=builder --chown=gemma:gemma /models /app/models
+
+# Copy configuration files
+COPY .env.template /app/.env.template
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/cache /app/tmp && \
+    chown -R gemma:gemma /app
+
+# Environment variables
+ENV PYTHONPATH=/app:$PYTHONPATH \
+    PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    MODEL_CACHE_DIR=/app/models \
+    LOG_DIR=/app/logs \
+    TEMP_DIR=/app/tmp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${APP_PORT:-8000}/health || exit 1
+
+# Switch to non-root user
+USER gemma
+
+# Expose port
+EXPOSE 8000
+
+# Entry point script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Activate virtual environment\n\
+source /app/.venv/bin/activate\n\
+\n\
+# Set model name from environment or use default\n\
+MODEL_NAME=${MODEL_NAME:-microsoft/phi-2}\n\
+echo "🚀 Starting Gemma LLM Server with model: $MODEL_NAME"\n\
+\n\
+# Ensure model is downloaded\n\
+if [ ! -d "/app/models/${MODEL_NAME//\//_}" ]; then\n\
+    echo "📥 Downloading model $MODEL_NAME..."\n\
+    python download_gemma_consolidated.py "$MODEL_NAME" --cache-dir /app/models\n\
+fi\n\
+\n\
+# Start the FastAPI server with Uvicorn\n\
+exec uvicorn src.server.main:app \\\n\
+    --host 0.0.0.0 \\\n\
+    --port ${APP_PORT:-8000} \\\n\
+    --workers ${WORKERS:-4} \\\n\
+    --log-level ${LOG_LEVEL:-info} \\\n\
+    --access-log \\\n\
+    --use-colors\n\
+' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+# Run the server
+CMD ["/app/entrypoint.sh"]

@@ -1,0 +1,380 @@
+# Docker Compose for Gemma.cpp Enhanced
+# Supports multiple deployment scenarios and hardware configurations
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # CPU-Only Service (Default)
+  # ===========================================================================
+  gemma-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+      args:
+        BUILD_TYPE: Release
+        ENABLE_CUDA: "false"
+        ENABLE_SYCL: "false"
+        ENABLE_VULKAN: "true"
+        ENABLE_OPENCL: "true"
+        ENABLE_MCP_SERVER: "true"
+        CMAKE_PARALLEL_JOBS: "4"
+      target: runtime
+    image: gemma-cpp:cpu-latest
+    container_name: gemma-cpu
+    restart: unless-stopped
+
+    # Resource limits for CPU-only deployment
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+
+    # Volume mounts
+    volumes:
+      - type: bind
+        source: ${MODELS_PATH:-./models}
+        target: /app/models
+        read_only: true
+      - type: volume
+        source: gemma-cache
+        target: /app/.cache
+
+    # Environment configuration
+    environment:
+      - GEMMA_LOG_LEVEL=${LOG_LEVEL:-info}
+      - GEMMA_MAX_THREADS=${MAX_THREADS:-4}
+      - GEMMA_CACHE_SIZE=${CACHE_SIZE:-2G}
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "/app/gemma", "--help"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Networking
+    ports:
+      - "${MCP_PORT:-8080}:8080"
+
+    # Security
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=1G
+
+    # Command override for MCP server
+    command: ["/app/mcp_server", "--listen", "0.0.0.0:8080"]
+
+  # ===========================================================================
+  # CUDA-Enabled Service (NVIDIA GPUs)
+  # ===========================================================================
+  gemma-cuda:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+      args:
+        BUILD_TYPE: Release
+        ENABLE_CUDA: "true"
+        ENABLE_SYCL: "false"
+        ENABLE_VULKAN: "true"
+        ENABLE_OPENCL: "true"
+        ENABLE_MCP_SERVER: "true"
+        CMAKE_PARALLEL_JOBS: "6"
+      target: runtime
+    image: gemma-cpp:cuda-latest
+    container_name: gemma-cuda
+    restart: unless-stopped
+
+    # NVIDIA GPU access
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - GEMMA_LOG_LEVEL=${LOG_LEVEL:-info}
+      - GEMMA_ENABLE_CUDA=true
+      - GEMMA_GPU_MEMORY_FRACTION=${GPU_MEMORY_FRACTION:-0.8}
+
+    # Resource limits for GPU deployment
+    deploy:
+      resources:
+        limits:
+          cpus: '8.0'
+          memory: 16G
+        reservations:
+          cpus: '4.0'
+          memory: 8G
+        # GPU reservation handled by nvidia runtime
+
+    # Volume mounts
+    volumes:
+      - type: bind
+        source: ${MODELS_PATH:-./models}
+        target: /app/models
+        read_only: true
+      - type: volume
+        source: gemma-cache-cuda
+        target: /app/.cache
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "/app/gemma", "--help"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    # Networking
+    ports:
+      - "${MCP_CUDA_PORT:-8081}:8080"
+
+    # Security
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=2G
+
+    # Command override
+    command: ["/app/mcp_server", "--listen", "0.0.0.0:8080", "--enable_cuda"]
+
+    # Only start if NVIDIA runtime is available
+    profiles:
+      - cuda
+      - gpu
+
+  # ===========================================================================
+  # All Backends Service (Development/Testing)
+  # ===========================================================================
+  gemma-all:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+      args:
+        BUILD_TYPE: RelWithDebInfo
+        ENABLE_CUDA: "true"
+        ENABLE_SYCL: "true"
+        ENABLE_VULKAN: "true"
+        ENABLE_OPENCL: "true"
+        ENABLE_MCP_SERVER: "true"
+        CMAKE_PARALLEL_JOBS: "8"
+      target: runtime
+    image: gemma-cpp:all-latest
+    container_name: gemma-all
+    restart: unless-stopped
+
+    # Full hardware access
+    runtime: nvidia
+    privileged: true  # For Intel GPU access
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - GEMMA_LOG_LEVEL=${LOG_LEVEL:-debug}
+      - GEMMA_ENABLE_ALL_BACKENDS=true
+      - GEMMA_AUTO_SELECT_BACKEND=true
+
+    # Resource limits for development
+    deploy:
+      resources:
+        limits:
+          cpus: '16.0'
+          memory: 32G
+        reservations:
+          cpus: '8.0'
+          memory: 16G
+
+    # Extended volume mounts for development
+    volumes:
+      - type: bind
+        source: ${MODELS_PATH:-./models}
+        target: /app/models
+        read_only: true
+      - type: bind
+        source: ${DEV_PATH:-./dev}
+        target: /app/dev
+      - type: volume
+        source: gemma-cache-all
+        target: /app/.cache
+      - type: tmpfs
+        target: /app/tmp
+        tmpfs:
+          size: 4G
+
+    # Development ports
+    ports:
+      - "${MCP_ALL_PORT:-8082}:8080"
+      - "${DEBUG_PORT:-9229}:9229"
+
+    # Health check with extended timeout
+    healthcheck:
+      test: ["CMD", "/app/gemma", "--help"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+
+    # Command override for development
+    command: ["/app/mcp_server", "--listen", "0.0.0.0:8080", "--auto_detect_backends", "--verbose"]
+
+    # Development profile
+    profiles:
+      - dev
+      - all
+
+  # ===========================================================================
+  # Benchmark Service
+  # ===========================================================================
+  gemma-benchmark:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+      args:
+        BUILD_TYPE: Release
+        ENABLE_CUDA: "true"
+        ENABLE_SYCL: "false"
+        ENABLE_VULKAN: "true"
+        ENABLE_OPENCL: "true"
+        ENABLE_MCP_SERVER: "false"
+        CMAKE_PARALLEL_JOBS: "8"
+      target: runtime
+    image: gemma-cpp:benchmark-latest
+    container_name: gemma-benchmark
+
+    # GPU access for benchmarks
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - BENCHMARK_ITERATIONS=${BENCHMARK_ITERATIONS:-100}
+      - BENCHMARK_WARMUP=${BENCHMARK_WARMUP:-10}
+
+    # Resource allocation for benchmarks
+    deploy:
+      resources:
+        limits:
+          cpus: '8.0'
+          memory: 16G
+
+    # Volume mounts
+    volumes:
+      - type: bind
+        source: ${MODELS_PATH:-./models}
+        target: /app/models
+        read_only: true
+      - type: bind
+        source: ${BENCHMARK_RESULTS:-./benchmark-results}
+        target: /app/results
+      - type: volume
+        source: gemma-cache-benchmark
+        target: /app/.cache
+
+    # Override command for benchmarking
+    command: ["/app/benchmark",
+              "--tokenizer", "/app/models/tokenizer.spm",
+              "--weights", "/app/models/gemma2-2b-it-sfp.sbs",
+              "--output", "/app/results/benchmark-$(date +%Y%m%d-%H%M%S).json"]
+
+    # Benchmark profile
+    profiles:
+      - benchmark
+
+  # ===========================================================================
+  # Load Balancer (for multiple instances)
+  # ===========================================================================
+  gemma-proxy:
+    image: nginx:alpine
+    container_name: gemma-proxy
+    restart: unless-stopped
+
+    # Configuration
+    volumes:
+      - type: bind
+        source: ./nginx.conf
+        target: /etc/nginx/nginx.conf
+        read_only: true
+
+    # Networking
+    ports:
+      - "${PROXY_PORT:-80}:80"
+      - "${PROXY_SSL_PORT:-443}:443"
+
+    # Dependencies
+    depends_on:
+      - gemma-cpu
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+    # Load balancer profile
+    profiles:
+      - loadbalancer
+      - production
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  gemma-cache:
+    name: gemma-cache
+    driver: local
+
+  gemma-cache-cuda:
+    name: gemma-cache-cuda
+    driver: local
+
+  gemma-cache-all:
+    name: gemma-cache-all
+    driver: local
+
+  gemma-cache-benchmark:
+    name: gemma-cache-benchmark
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  default:
+    name: gemma-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: gemma-br0
+
+# =============================================================================
+# Example Usage Commands
+# =============================================================================
+#
+# Start CPU-only service:
+#   docker-compose up gemma-cpu
+#
+# Start CUDA-enabled service:
+#   docker-compose --profile cuda up gemma-cuda
+#
+# Start development environment:
+#   docker-compose --profile dev up gemma-all
+#
+# Run benchmarks:
+#   docker-compose --profile benchmark run --rm gemma-benchmark
+#
+# Start production with load balancer:
+#   docker-compose --profile production up gemma-cpu gemma-proxy
+#
+# Environment variables:
+#   MODELS_PATH=/path/to/models
+#   LOG_LEVEL=debug
+#   MCP_PORT=8080
+#   GPU_MEMORY_FRACTION=0.8
+#   BENCHMARK_ITERATIONS=1000

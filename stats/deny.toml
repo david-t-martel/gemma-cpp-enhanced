@@ -1,0 +1,104 @@
+# Configuration for cargo-deny
+# https://github.com/EmbarkStudios/cargo-deny
+
+[graph]
+# All of the available targets that will be considered when collecting metadata
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc", "x86_64-apple-darwin"]
+# Exclude dev dependencies from the graph
+exclude-dev = false
+
+[bans]
+# Lint level for when multiple versions of the same crate are detected
+multiple-versions = "warn"
+# Lint level for when a crate version requirement is `*`
+wildcards = "allow"
+# The confidence threshold for detecting a license from a license file
+confidence-threshold = 0.8
+
+# List of crates to deny
+deny = []
+
+# List of crates to skip when checking for duplicates
+skip = []
+
+# List of crates to skip when checking for wildcards
+skip-wildcards = []
+
+[licenses]
+# The confidence threshold for detecting a license from a license file
+confidence-threshold = 0.8
+# Lint level for when a license exception is encountered
+exceptions = "allow"
+
+# List of explicitly allowed licenses
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unlicense",
+    "CC0-1.0",
+    "MPL-2.0",
+    "LGPL-3.0-or-later",
+    "0BSD",
+    "Zlib",
+    "Unicode-DFS-2016",
+    "WTFPL"
+]
+
+# List of explicitly disallowed licenses
+deny = [
+    "GPL-2.0",
+    "GPL-3.0",
+    "AGPL-1.0",
+    "AGPL-3.0",
+    "EUPL-1.1",
+    "EUPL-1.2",
+    "LGPL-2.0",
+    "LGPL-2.1",
+    "LGPL-3.0",
+    "NPL-1.0",
+    "NPL-1.1",
+    "OSL-1.0",
+    "OSL-1.1",
+    "OSL-2.0",
+    "OSL-2.1",
+    "OSL-3.0",
+    "QPL-1.0",
+    "Sleepycat"
+]
+
+# Lint level for when a license is considered copyleft
+copyleft = "warn"
+# Lint level for when the license cannot be inferred from the license file
+default = "deny"
+# Note: confidence-threshold is specified at the top of the [licenses] section
+
+[advisories]
+# The path where the advisory database is cloned/fetched into
+db-path = ".cargo-deny"
+# The url(s) of the advisory databases to use
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# The lint level for security vulnerabilities
+vulnerability = "deny"
+# The lint level for unmaintained crates
+unmaintained = "warn"
+# The lint level for crates that have been yanked from their source registry
+yanked = "warn"
+# The lint level for crates with security notices
+notice = "warn"
+# A list of advisory IDs to ignore
+ignore = []
+
+[sources]
+# Lint level for what to happen when a crate from a crate registry that is not
+# in the allow list is encountered
+unknown-registry = "warn"
+# Lint level for what to happen when a crate from a git repository that is not
+# in the allow list is encountered
+unknown-git = "warn"
+
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

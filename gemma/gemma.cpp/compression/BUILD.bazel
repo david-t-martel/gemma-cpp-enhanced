@@ -1,0 +1,193 @@
+# Weight compression and analysis.
+
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(
+    default_applicable_licenses = [
+        "//:license",  # Placeholder comment, do not modify
+    ],
+    # Placeholder for internal compatible_with
+    default_visibility = [
+        # Placeholder for internal visibility,
+        # Users require gcpp::Path etc., which are defined in this package.
+        "//visibility:public",
+    ],
+)
+
+config_setting(
+    name = "android",
+    constraint_values = [
+        "@platforms//os:android",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "distortion",
+    hdrs = [
+        "distortion.h",
+        "types.h",
+    ],
+    deps = [
+        "//:basics",
+        "@highway//:hwy",
+        "@highway//:stats",
+        "@highway//hwy/contrib/sort:vqsort",
+    ],
+)
+
+cc_test(
+    name = "distortion_test",
+    size = "small",
+    srcs = ["distortion_test.cc"],
+    deps = [
+        ":distortion",
+        "@googletest//:gtest_main",  # buildcleaner: keep
+        "//:test_util",
+        "@highway//:hwy_test_util",
+        "@highway//:nanobenchmark",  # Unpredictable1
+    ],
+)
+
+cc_library(
+    name = "types",
+    hdrs = ["types.h"],
+    deps = [
+        "//:basics",
+        "@highway//:hwy",
+    ],
+)
+
+cc_library(
+    name = "sfp",
+    textual_hdrs = ["sfp-inl.h"],
+    deps = [
+        ":types",
+        "@highway//:hwy",
+    ],
+)
+
+cc_library(
+    name = "nuq",
+    textual_hdrs = ["nuq-inl.h"],
+    deps = [
+        ":sfp",
+        ":types",
+        "//:basics",
+        "@highway//:hwy",
+        "@highway//hwy/contrib/sort:vqsort",
+    ],
+)
+
+cc_library(
+    name = "test_util",
+    textual_hdrs = [
+        "test_util-inl.h",
+    ],
+    deps = [
+        ":compress",
+        ":distortion",
+        "//:mat",
+        "@highway//:hwy",
+        "@highway//:hwy_test_util",
+        "@highway//:thread_pool",
+    ],
+)
+
+cc_test(
+    name = "sfp_test",
+    size = "small",
+    srcs = ["sfp_test.cc"],
+    linkstatic = True,
+    local_defines = ["HWY_IS_TEST"],
+    # for test_suite.
+    tags = ["hwy_ops_test"],
+    deps = [
+        ":distortion",
+        ":sfp",
+        "@googletest//:gtest_main",  # buildcleaner: keep
+        "//:test_util",
+        "@highway//:hwy",
+        "@highway//:hwy_test_util",
+        "@highway//:nanobenchmark",
+    ],
+)
+
+cc_test(
+    name = "nuq_test",
+    size = "small",
+    timeout = "long",
+    srcs = ["nuq_test.cc"],
+    linkstatic = True,
+    local_defines = ["HWY_IS_TEST"],
+    # for test_suite.
+    tags = ["hwy_ops_test"],
+    deps = [
+        ":distortion",
+        ":nuq",
+        "@googletest//:gtest_main",  # buildcleaner: keep
+        "//:test_util",
+        "@highway//:hwy",
+        "@highway//:hwy_test_util",
+        "@highway//:nanobenchmark",
+    ],
+)
+
+cc_library(
+    name = "compress",
+    srcs = ["compress.cc"],
+    hdrs = [
+        "compress.h",
+        "types.h",
+    ],
+    textual_hdrs = ["compress-inl.h"],
+    deps = [
+        ":distortion",
+        ":nuq",
+        ":sfp",
+        "//:basics",
+        "//:mat",
+        "@highway//:hwy",
+        "@highway//:nanobenchmark",
+        "@highway//:profiler",
+        "@highway//:stats",
+        "@highway//:thread_pool",
+    ],
+)
+
+cc_test(
+    name = "compress_test",
+    size = "small",
+    timeout = "long",
+    srcs = ["compress_test.cc"],
+    linkstatic = True,
+    local_defines = ["HWY_IS_TEST"],
+    # for test_suite.
+    tags = ["hwy_ops_test"],
+    deps = [
+        ":compress",
+        ":distortion",
+        ":test_util",
+        "@googletest//:gtest_main",  # buildcleaner: keep
+        "//:test_util",
+        "@highway//:hwy",
+        "@highway//:hwy_test_util",
+        "@highway//:thread_pool",
+    ],
+)
+
+# For internal experimentation
+cc_library(
+    name = "analyze",
+    textual_hdrs = ["analyze.h"],
+    deps = [
+        ":nuq",
+        ":sfp",
+        ":types",
+        "@highway//:hwy",
+        "@highway//:stats",
+        "@highway//:thread_pool",
+        "@highway//hwy/contrib/sort:vqsort",
+    ],
+)

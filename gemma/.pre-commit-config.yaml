@@ -1,0 +1,364 @@
+# Pre-commit configuration for gemma.cpp enhanced project
+# Integrates with auto-claude framework at C:\users\david\.claude\*
+# See https://pre-commit.com for more information
+
+repos:
+  # ==========================================================================
+  # Auto-Claude Framework Integration
+  # ==========================================================================
+  - repo: local
+    hooks:
+      - id: auto-claude-analyze
+        name: Auto-Claude Code Analysis
+        entry: bash
+        language: system
+        files: \.(cpp|cc|h|hpp|py|js|ts)$
+        args:
+          - -c
+          - |
+            if [ -f "C:/users/david/.claude/scripts/auto-claude.sh" ]; then
+              echo "Running auto-claude analysis..."
+              bash "C:/users/david/.claude/scripts/auto-claude.sh" analyze --verbose || true
+            else
+              echo "Auto-claude framework not found, skipping..."
+            fi
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: auto-claude-fix
+        name: Auto-Claude Auto-Fix
+        entry: bash
+        language: system
+        files: \.(cpp|cc|h|hpp|py|js|ts)$
+        args:
+          - -c
+          - |
+            if [ -f "C:/users/david/.claude/scripts/auto-claude.sh" ]; then
+              echo "Running auto-claude fixes..."
+              bash "C:/users/david/.claude/scripts/auto-claude.sh" fix --aggressive || true
+            else
+              echo "Auto-claude framework not found, skipping..."
+            fi
+        pass_filenames: false
+        stages: [pre-commit]
+
+  # ==========================================================================
+  # AST-grep Semantic Analysis
+  # ==========================================================================
+  - repo: local
+    hooks:
+      - id: ast-grep-scan
+        name: AST-grep Semantic Analysis
+        entry: bash
+        language: system
+        files: \.(cpp|cc|h|hpp|py|js|ts)$
+        args:
+          - -c
+          - |
+            if command -v sg >/dev/null 2>&1; then
+              echo "Running AST-grep semantic analysis..."
+              sg scan --format=github || echo "AST-grep scan completed with warnings"
+            elif [ -f "C:/Users/david/.cargo/bin/sg.exe" ]; then
+              echo "Running AST-grep semantic analysis..."
+              "C:/Users/david/.cargo/bin/sg.exe" scan --format=github || echo "AST-grep scan completed with warnings"
+            else
+              echo "AST-grep not found, install with: cargo install ast-grep"
+            fi
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: ast-grep-fix
+        name: AST-grep Auto-Fix
+        entry: bash
+        language: system
+        files: \.(cpp|cc|h|hpp|py|js|ts)$
+        args:
+          - -c
+          - |
+            if command -v sg >/dev/null 2>&1; then
+              echo "Running AST-grep auto-fixes..."
+              sg fix --interactive=false || echo "AST-grep fixes completed"
+            elif [ -f "C:/Users/david/.cargo/bin/sg.exe" ]; then
+              echo "Running AST-grep auto-fixes..."
+              "C:/Users/david/.cargo/bin/sg.exe" fix --interactive=false || echo "AST-grep fixes completed"
+            fi
+        pass_filenames: false
+        stages: [pre-commit]
+
+  # ==========================================================================
+  # Python Code Quality (Ruff + Black)
+  # ==========================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        name: Ruff Linting (Python)
+        args: [--fix, --exit-non-zero-on-fix]
+        types: [python]
+
+      - id: ruff-format
+        name: Ruff Formatting (Python)
+        types: [python]
+
+  - repo: https://github.com/psf/black
+    rev: 24.8.0
+    hooks:
+      - id: black
+        name: Black Python Formatter
+        language_version: python3
+        types: [python]
+        args: [--line-length=100]
+
+  # ==========================================================================
+  # C++ Code Formatting and Analysis
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v19.1.0
+    hooks:
+      - id: clang-format
+        name: Clang-Format (C++)
+        types_or: [c++, c]
+        args: [--style=file, --fallback-style=Google]
+
+  - repo: local
+    hooks:
+      - id: clang-tidy
+        name: Clang-Tidy Static Analysis
+        entry: bash
+        language: system
+        files: \.(cpp|cc)$
+        args:
+          - -c
+          - |
+            if command -v clang-tidy >/dev/null 2>&1; then
+              echo "Running clang-tidy analysis..."
+              find . -name "*.cpp" -o -name "*.cc" | head -5 | while read file; do
+                clang-tidy "$file" -p=build || echo "Clang-tidy completed for $file"
+              done
+            else
+              echo "Clang-tidy not found, skipping static analysis"
+            fi
+        pass_filenames: false
+
+  # ==========================================================================
+  # Build Validation
+  # ==========================================================================
+  - repo: local
+    hooks:
+      - id: cmake-format
+        name: CMake Format Check
+        entry: bash
+        language: system
+        files: CMakeLists\.txt$|\.cmake$
+        args:
+          - -c
+          - |
+            if command -v cmake-format >/dev/null 2>&1; then
+              echo "Running cmake-format..."
+              find . -name "CMakeLists.txt" -o -name "*.cmake" | head -10 | xargs cmake-format --check || echo "CMake formatting issues detected"
+            else
+              echo "cmake-format not found, install with: pip install cmakelang"
+            fi
+        pass_filenames: false
+
+      - id: build-validation
+        name: Build Configuration Validation
+        entry: bash
+        language: system
+        files: CMakeLists\.txt$|\.cmake$|CMakePresets\.json$
+        args:
+          - -c
+          - |
+            echo "Validating CMake configuration..."
+            if [ -f "CMakeLists.txt" ]; then
+              mkdir -p build-validation
+              cd build-validation
+              cmake .. -DGEMMA_BUILD_BACKENDS=OFF -DGEMMA_BUILD_ENHANCED_TESTS=OFF -DGEMMA_BUILD_MCP_SERVER=OFF || {
+                echo "CMake configuration failed"
+                exit 1
+              }
+              echo "CMake configuration validation passed"
+              cd ..
+              rm -rf build-validation
+            fi
+        pass_filenames: false
+        stages: [pre-commit]
+
+  # ==========================================================================
+  # Security and Compliance
+  # ==========================================================================
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: Detect Secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package-lock\.json
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.10
+    hooks:
+      - id: bandit
+        name: Bandit Security Linter (Python)
+        args: ["-r", ".", "-f", "json", "-o", "bandit-report.json"]
+        types: [python]
+
+  # ==========================================================================
+  # File and Documentation Quality
+  # ==========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim Trailing Whitespace
+        exclude: \.(patch|diff)$
+
+      - id: end-of-file-fixer
+        name: Fix End of Files
+        exclude: \.(patch|diff)$
+
+      - id: check-yaml
+        name: Check YAML Syntax
+        exclude: \.github/workflows/.*\.yml$ # Allow workflow-specific syntax
+
+      - id: check-json
+        name: Check JSON Syntax
+
+      - id: check-toml
+        name: Check TOML Syntax
+
+      - id: check-merge-conflict
+        name: Check for Merge Conflicts
+
+      - id: check-case-conflict
+        name: Check for Case Conflicts
+
+      - id: mixed-line-ending
+        name: Check Line Endings
+        args: ['--fix=lf']
+
+      - id: check-added-large-files
+        name: Check for Large Files
+        args: ['--maxkb=1024']  # 1MB limit
+
+  # ==========================================================================
+  # Documentation and Markdown
+  # ==========================================================================
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.42.0
+    hooks:
+      - id: markdownlint
+        name: Markdown Linting
+        args: ['--fix']
+        files: \.md$
+
+  - repo: local
+    hooks:
+      - id: markdown-auto-fix
+        name: Auto-Claude Markdown Fix
+        entry: bash
+        language: system
+        files: \.md$
+        args:
+          - -c
+          - |
+            if [ -f "C:/users/david/.claude/scripts/markdown-fix.cjs" ]; then
+              echo "Running auto-claude markdown fixes..."
+              node "C:/users/david/.claude/scripts/markdown-fix.cjs" || echo "Markdown fixes completed"
+            fi
+        pass_filenames: false
+
+  # ==========================================================================
+  # Performance and Optimization
+  # ==========================================================================
+  - repo: local
+    hooks:
+      - id: performance-check
+        name: Performance Impact Check
+        entry: bash
+        language: system
+        files: \.(cpp|cc|h|hpp)$
+        args:
+          - -c
+          - |
+            echo "Checking for potential performance regressions..."
+            # Check for common performance anti-patterns
+            if grep -r "std::endl\|malloc\|new\[\]" --include="*.cpp" --include="*.cc" --include="*.h" .; then
+              echo "⚠️  Potential performance issues detected:"
+              echo "- Prefer '\\n' over std::endl for better performance"
+              echo "- Consider using smart pointers instead of raw malloc/new"
+              echo "- Review memory allocation patterns"
+            else
+              echo "✅ No obvious performance issues detected"
+            fi
+        pass_filenames: false
+
+  # ==========================================================================
+  # Integration with Auto-Claude Framework
+  # ==========================================================================
+  - repo: local
+    hooks:
+      - id: claude-quality-gate
+        name: Auto-Claude Quality Gate
+        entry: bash
+        language: system
+        files: \.
+        args:
+          - -c
+          - |
+            echo "Running comprehensive quality gate..."
+
+            # Run auto-claude quality checks if available
+            if [ -f "C:/users/david/.claude/package.json" ]; then
+              cd "C:/users/david/.claude"
+              if command -v npm >/dev/null 2>&1; then
+                echo "Running auto-claude quality gate..."
+                npm run quality:gate || echo "Quality gate completed with warnings"
+              fi
+              cd - >/dev/null
+            fi
+
+            # Verify build system health
+            echo "Verifying build system..."
+            if [ -f "CMakeLists.txt" ]; then
+              echo "✅ CMake project detected"
+            fi
+
+            echo "Quality gate validation completed"
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+# ==========================================================================
+# Pre-commit Configuration
+# ==========================================================================
+default_stages: [pre-commit]
+default_language_version:
+  python: python3
+  node: system
+
+# Fail fast on first error
+fail_fast: false
+
+# Minimum pre-commit version
+minimum_pre_commit_version: '3.0.0'
+
+# Additional settings
+exclude: |
+  (?x)^(
+    # Build directories
+    build/.*|
+    build-.*|
+    .*\.build/.*|
+    # Dependencies
+    .*_deps/.*|
+    third_party/.*|
+    # Generated files
+    .*\.generated\.(cpp|h)$|
+    # Large files
+    .*\.(sbs|bin|so|dll|exe)$|
+    # Test data
+    test_data/.*|
+    .*\.test\..*
+  )$

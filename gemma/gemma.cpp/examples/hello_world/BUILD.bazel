@@ -1,0 +1,22 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+
+# Hello World example frontend to gemma.cpp.
+package(
+    default_applicable_licenses = [
+        "//:license",  # Placeholder comment, do not modify
+    ],
+    default_visibility = ["//visibility:public"],
+)
+
+cc_binary(
+    name = "hello_world",
+    srcs = ["run.cc"],
+    deps = [
+        "//:args",
+        "//:gemma_args",
+        "//:gemma_lib",
+        "//:threading_context",
+        "//:tokenizer",
+        "@highway//:hwy",
+    ],
+)

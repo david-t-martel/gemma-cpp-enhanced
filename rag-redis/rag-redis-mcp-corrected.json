@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "rag-redis": {
+      "command": "C:/Users/david/.cargo/shared-target/release/rag-redis-mcp-server.exe",
+      "args": [],
+      "env": {
+        "RUST_LOG": "info",
+        "REDIS_URL": "redis://127.0.0.1:6379",
+        "RAG_DATA_DIR": "C:/codedev/llm/stats/data/rag",
+        "EMBEDDING_CACHE_DIR": "C:/codedev/llm/stats/cache/embeddings"
+      }
+    }
+  }
+}

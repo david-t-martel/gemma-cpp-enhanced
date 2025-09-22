@@ -1,0 +1,111 @@
+PROJECT REQUIREMENTS DOCUMENT
+LLM Development Ecosystem - Integration and Completion
+
+PROJECT OVERVIEW:
+A comprehensive LLM development ecosystem combining high-performance C++ inference (gemma.cpp), Python-based AI agent framework with RAG capabilities, and Rust-powered system tools. The project requires completing builds, fixing integration issues, and optimizing performance across Windows native, WSL, and cross-platform targets.
+
+TECHNICAL STACK:
+- C++ (Gemma inference engine with SIMD optimizations)
+- Python (AI agent framework with tool registry)
+- Rust (RAG-Redis system with vector search)
+- Redis (Vector database and memory tiers)
+- MCP Protocol (Inter-process communication)
+
+CURRENT STATE:
+- C++ Gemma build incomplete (missing gemma.exe)
+- Python agent framework functional but disconnected from native inference
+- RAG-Redis system reorganized but not built (90% completion before resource failure)
+- MCP servers configured but not integrated
+- VFS errors from stale build artifacts (10GB+ cleaned)
+
+PRIMARY OBJECTIVES:
+1. Complete all component builds within resource constraints
+2. Fix integration between C++/Python/Rust components
+3. Establish working MCP protocol communication
+4. Enable full AI agent pipeline with RAG support
+5. Optimize for memory-constrained environment
+
+FUNCTIONAL REQUIREMENTS:
+
+Build System Requirements:
+- Fix CMake configuration using VS 2022 bundled version
+- Complete C++ Gemma build with gemma.exe, benchmarks, and migration tools
+- Build Rust RAG-Redis system with memory-optimized settings
+- Compile Python-Rust extensions via maturin
+- Clean stale build artifacts to free resources
+
+Integration Requirements:
+- Connect Python agent to native Gemma executable
+- Wire up MCP protocol between Python and Rust components
+- Implement Redis connection for RAG vector search
+- Enable cross-language memory sharing
+- Fix hardcoded Windows paths for cross-platform compatibility
+
+AI/ML Pipeline Requirements:
+- Load Gemma models from .models/ directory (2B and 4B variants)
+- Support three agent modes: FULL (PyTorch), LIGHTWEIGHT (Pipeline), NATIVE (C++)
+- Implement 5-tier memory system (Working → Short-term → Long-term → Episodic → Semantic)
+- Enable SIMD optimizations for vector operations
+- Add fallback mechanisms for resource constraints
+
+Performance Requirements:
+- Achieve <2 second model loading time
+- Enable batch inference for throughput
+- Implement request queuing and async processing
+- Add caching layers for frequent queries
+- Support model quantization for memory efficiency
+
+Testing Requirements:
+- Validate each component build independently
+- Test integration points between languages
+- Verify MCP protocol communication
+- Benchmark inference performance
+- Test memory tier transitions
+
+NON-FUNCTIONAL REQUIREMENTS:
+- Maintain 85% code coverage
+- Support Windows, WSL, Linux, macOS
+- Handle resource constraints gracefully
+- Provide clear error messages and fallbacks
+- Document all integration points
+
+CONSTRAINTS:
+- Memory limitations (builds failing at 90% completion)
+- Disk space available: 2.0TB
+- Model sizes: 2-7GB per model
+- Must use existing tools in C:\users\david\.local\bin\
+
+SUCCESS CRITERIA:
+1. All three language components build successfully
+2. End-to-end AI agent query works with RAG
+3. MCP servers respond to protocol requests
+4. Memory usage stays within available limits
+5. Performance meets or exceeds baseline metrics
+
+DELIVERABLES:
+1. Working gemma.exe with benchmark tools
+2. Built RAG-Redis binaries and Python extensions
+3. Integrated Python agent with native inference
+4. Functional MCP server communication
+5. Complete documentation of integration points
+6. Test suite validating all components
+
+TECHNICAL DEBT TO ADDRESS:
+- Replace subprocess calls with proper FFI
+- Remove hardcoded paths throughout codebase
+- Implement proper error boundaries
+- Add configuration management system
+- Create service discovery mechanism
+
+RISK MITIGATION:
+- Use single-threaded builds to avoid memory pressure
+- Implement progressive build strategy
+- Add multiple fallback mechanisms
+- Create minimal working configurations
+- Monitor resource usage during builds
+
+TIMELINE PRIORITIES:
+Phase 1 (Immediate): Fix builds and basic integration
+Phase 2 (Short-term): Wire up MCP and Redis
+Phase 3 (Medium-term): Optimize performance and memory
+Phase 4 (Long-term): Refactor architecture and add production features

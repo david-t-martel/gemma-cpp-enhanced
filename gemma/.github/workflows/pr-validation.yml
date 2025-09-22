@@ -1,0 +1,145 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  quick-validation:
+    name: Quick Validation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: pr-validation
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build
+
+    - name: Configure CMake
+      working-directory: gemma.cpp
+      run: |
+        cmake --preset make \
+          -DGEMMA_ENABLE_ENHANCED_TESTS=ON \
+          -DGEMMA_ENABLE_TESTS=ON \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+    - name: Build core components
+      working-directory: gemma.cpp
+      run: |
+        cmake --build --preset make \
+          --target libgemma \
+          --target gemma \
+          --parallel 4
+
+    - name: Build essential tests
+      working-directory: gemma.cpp
+      run: |
+        cmake --build --preset make \
+          --target test_gemma_core \
+          --parallel 4
+
+    - name: Run essential tests
+      working-directory: gemma.cpp
+      run: |
+        # Run only the fastest tests for quick feedback
+        ctest --test-dir build \
+          -L "unit" \
+          --output-on-failure \
+          --parallel 4 \
+          --timeout 30
+
+    - name: Check build artifacts
+      working-directory: gemma.cpp
+      run: |
+        echo "Build artifacts:"
+        ls -la build/
+
+        echo "Test executables:"
+        ls -la build/test_* 2>/dev/null || echo "No test executables found"
+
+  build-check:
+    name: Multi-platform Build Check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+        include:
+          - os: ubuntu-22.04
+            preset: "make"
+          - os: windows-2022
+            preset: "windows"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-22.04'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build
+
+    - name: Configure CMake
+      working-directory: gemma.cpp
+      run: |
+        cmake --preset ${{ matrix.preset }} \
+          -DGEMMA_ENABLE_ENHANCED_TESTS=ON \
+          -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+    - name: Build main targets
+      working-directory: gemma.cpp
+      run: |
+        cmake --build --preset ${{ matrix.preset }} \
+          --target libgemma \
+          --target gemma \
+          --parallel 4
+
+  validation-summary:
+    name: Validation Summary
+    runs-on: ubuntu-latest
+    needs: [quick-validation, build-check]
+    if: always()
+
+    steps:
+    - name: Generate PR summary
+      run: |
+        echo "# PR Validation Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ needs.quick-validation.result }}" == "success" ]; then
+          echo "✅ Quick Validation: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Quick Validation: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [ "${{ needs.build-check.result }}" == "success" ]; then
+          echo "✅ Multi-platform Build: PASSED" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Multi-platform Build: FAILED" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ needs.quick-validation.result }}" == "success" ] && [ "${{ needs.build-check.result }}" == "success" ]; then
+          echo "🎉 **All validation checks passed!** This PR is ready for review." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ **Some validation checks failed.** Please review the logs and fix any issues." >> $GITHUB_STEP_SUMMARY
+        fi

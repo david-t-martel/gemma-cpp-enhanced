@@ -1,0 +1,49 @@
+# Core dependencies
+torch>=2.0.0
+transformers>=4.35.0
+accelerate>=0.24.0
+
+# API and CLI
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+typer>=0.9.0
+rich>=13.5.0
+
+# Data and validation
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+datasets>=2.14.0
+
+# Tokenization
+tokenizers>=0.15.0
+sentencepiece>=0.1.99
+
+# Optimization
+bitsandbytes>=0.41.0
+safetensors>=0.4.0
+
+# Utilities
+httpx>=0.25.0
+tqdm>=4.66.0
+psutil>=5.9.0
+aiofiles>=23.2.0
+python-multipart>=0.0.6
+websockets>=12.0
+
+# Tool framework dependencies
+docker>=6.1.0
+aiohttp>=3.8.0
+chardet>=5.2.0
+
+# Server-Sent Events and monitoring
+sse-starlette>=1.6.0
+prometheus-client>=0.19.0
+
+# Optional MCP server dependencies
+websockets>=12.0
+
+# Agent-specific dependencies
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+python-dateutil>=2.8.0
+protobuf>=3.20.0
