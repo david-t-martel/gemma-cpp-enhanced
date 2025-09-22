@@ -1,0 +1,255 @@
+name: Performance Issue
+description: Report a performance problem or regression
+title: "[PERFORMANCE] "
+labels: ["performance", "needs-triage"]
+projects: ["david-t-martel/1"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a performance issue! Please provide detailed measurements and system information.
+
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Search for existing issues
+      description: Please search for existing performance issues before creating a new one
+      options:
+        - label: I have searched for existing performance issues
+          required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which component shows performance issues?
+      options:
+        - Model loading
+        - Tokenization
+        - Inference/Generation
+        - Memory management
+        - CUDA backend
+        - SYCL backend
+        - Vulkan backend
+        - MCP server
+        - Build system
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Issue Type
+      description: What type of performance issue is this?
+      options:
+        - Performance regression (was faster before)
+        - Slower than expected (never been fast enough)
+        - Memory usage too high
+        - Memory leak
+        - CPU usage too high
+        - GPU utilization too low
+        - Long startup time
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Performance Issue Description
+      description: Describe the performance problem
+      placeholder: |
+        Describe what performance issue you're experiencing...
+
+        Example: Token generation is taking 5 seconds per token on RTX 4060...
+    validations:
+      required: true
+
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Performance Measurements
+      description: Provide specific measurements
+      placeholder: |
+        Current performance:
+        - Tokens per second:
+        - Memory usage:
+        - CPU usage:
+        - GPU usage:
+        - Startup time:
+
+        Expected performance:
+        - Tokens per second:
+        - Memory usage:
+        - etc...
+    validations:
+      required: true
+
+  - type: textarea
+    id: system_info
+    attributes:
+      label: System Information
+      description: Detailed system information
+      placeholder: |
+        Hardware:
+        - CPU: Intel i7-12700K / AMD Ryzen 7 5800X
+        - GPU: NVIDIA RTX 4060 / AMD RX 7600
+        - RAM: 32GB DDR4-3200
+        - Storage: NVMe SSD
+
+        Software:
+        - OS: Ubuntu 22.04 / Windows 11 / macOS 13
+        - Compiler: GCC 11.3 / MSVC 2022 / Clang 14
+        - CUDA version: 12.1 (if applicable)
+        - SYCL version: 2024.1 (if applicable)
+    validations:
+      required: true
+
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Build Configuration
+      description: How was the project built?
+      placeholder: |
+        CMake configuration:
+        ```
+        cmake -B build -DCMAKE_BUILD_TYPE=Release -DGEMMA_BUILD_CUDA_BACKEND=ON
+        ```
+
+        Compiler flags used:
+        ```
+        -O3 -DNDEBUG -march=native
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: model_info
+    attributes:
+      label: Model Information
+      description: Which model and what parameters?
+      placeholder: |
+        Model:
+        - Model file: gemma2-2b-it-sfp.sbs
+        - Model size: 2B parameters
+        - Quantization: SFP/BF16/F32
+
+        Runtime parameters:
+        - Sequence length: 2048
+        - Batch size: 1
+        - Temperature: 0.7
+    validations:
+      required: true
+
+  - type: textarea
+    id: benchmark_command
+    attributes:
+      label: Reproduction Command
+      description: Exact command used to reproduce the issue
+      placeholder: |
+        ```bash
+        ./build/gemma \
+          --tokenizer /path/to/tokenizer.spm \
+          --weights /path/to/model.sbs \
+          --prompt "Hello world"
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: profiling_data
+    attributes:
+      label: Profiling Data
+      description: Any profiling data you've collected
+      placeholder: |
+        Profiler output (perf, vtune, nvidia-smi, etc.):
+        ```
+        Paste profiling output here
+        ```
+    validations:
+      required: false
+
+  - type: dropdown
+    id: regression_status
+    attributes:
+      label: Regression Status
+      description: Is this a regression from a previous version?
+      options:
+        - "Yes - performance was better in a previous version"
+        - "No - this has always been slow"
+        - "Unknown - not sure about previous performance"
+    validations:
+      required: true
+
+  - type: input
+    id: last_good_version
+    attributes:
+      label: Last Known Good Version
+      description: If this is a regression, what was the last version that performed well?
+      placeholder: "v1.2.0 or commit hash"
+    validations:
+      required: false
+
+  - type: textarea
+    id: comparison
+    attributes:
+      label: Performance Comparison
+      description: How does this compare to other tools or expected performance?
+      placeholder: |
+        Comparison with:
+        - llama.cpp: 150 tokens/sec
+        - Other tool: 120 tokens/sec
+        - This implementation: 45 tokens/sec
+
+        Expected based on hardware specs: ~100 tokens/sec
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: attempted_solutions
+    attributes:
+      label: Attempted Solutions
+      description: What have you tried to improve performance?
+      options:
+        - label: Different compiler flags (-O3, -march=native, etc.)
+        - label: Different model formats (SFP vs BF16 vs F32)
+        - label: Different batch sizes
+        - label: Different hardware backends
+        - label: Memory debugging tools
+        - label: CPU/GPU profiling
+        - label: Upgrading drivers
+        - label: Closing other applications
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: How does this performance issue affect your workflow?
+      placeholder: |
+        Example: This makes the tool unusable for production workloads...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs
+      description: Any relevant log output
+      placeholder: |
+        ```
+        Paste relevant logs here
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context about this performance issue
+      placeholder: |
+        Add any other context, graphs, screenshots of monitoring tools, etc.
+    validations:
+      required: false

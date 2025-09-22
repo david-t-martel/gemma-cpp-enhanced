@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 gemma.cpp/build*/
 gemma.cpp/nul
 
@@ -150,3 +151,426 @@ vcpkg*/
 *.pid
 *.sock
 *.fifo
+||||||| empty tree
+=======
+gemma.cpp/build*/
+gemma.cpp/nul
+
+# Explicitly include .github (overrides user/global ignore that hides it)
+!/.github/
+
+# -----------------------------
+# Added ignore patterns (2025-09-17)
+# -----------------------------
+
+# CMake bundled distribution docs (very large, regenerated / downloadable)
+gemma.cpp/cmake-*/
+
+# Local build/test byproducts (root-level helpers that may appear)
+build/
+dist/
+*.cache/
+
+# Python artifacts
+__pycache__/
+*.pyc
+
+# Logs & profiling output
+*.log
+server.log
+
+# Temporary / backup / scratch
+*.backup
+run_gemma.bat.backup
+temp_file.bat
+*.tmp
+*.swp
+*.swo
+
+# Editor / IDE metadata
+.vscode/
+.idea/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# AI assistant context / transient tooling
+.claude/
+
+# Model weights & large ML artifacts (do NOT commit weights/tokenizers)
+*.sbs
+*.spm
+*.gguf
+*.pt
+*.pth
+*.onnx
+
+# Binary build outputs (comment out if intentionally tracked)
+*.exe
+*.dll
+*.pdb
+*.lib
+*.so
+*.dylib
+
+# Archive bundles
+*.tar
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Coverage / test reports
+coverage/
+*.lcov
+
+# Wheel / packaging
+*.whl
+*.egg-info/
+
+# Node (if any JS tooling is introduced later)
+node_modules/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Optional: uncomment to ignore all local scripts starting with temp_
+# temp_*
+
+# Enhanced Gemma.cpp ignore patterns for Modular Architecture
+# -----------------------------
+
+# =============================================================================
+# BUILD OUTPUTS & ARTIFACTS
+# =============================================================================
+
+# Core component build outputs
+gemma/build/
+mcp/build/
+backends/build/
+tests/build/
+tools/build/
+
+# CMake build directories (all variants)
+cmake-build-*/
+build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+
+# Platform-specific build outputs
+win32/
+x64/
+Release/
+Debug/
+RelWithDebInfo/
+MinSizeRel/
+
+# Generated CMake files
+*Config.cmake
+*ConfigVersion.cmake
+*Targets.cmake
+*Exports.cmake
+
+# =============================================================================
+# RUNTIME & DEPLOYMENT FILES
+# =============================================================================
+
+# MCP server runtime files
+mcp/logs/
+mcp/config/local_*.json
+mcp/config/development_*.json
+mcp/temp/
+mcp/pid/
+mcp/sockets/
+
+# Application data
+data/cache/
+data/logs/
+data/temp/
+runtime/
+
+# Configuration overrides
+config/local_*.yaml
+config/development_*.yaml
+config/*_override.*
+
+# =============================================================================
+# HARDWARE ACCELERATION ARTIFACTS
+# =============================================================================
+
+# CUDA artifacts
+backends/cuda/build/
+backends/cuda/ptx/
+*.cubin
+*.fatbin
+*.cu.cache
+nvcc_tmp*
+
+# SYCL/oneAPI artifacts
+backends/sycl/build/
+*.sycl_cache/
+intel_compiler_*/
+
+# Vulkan artifacts
+backends/vulkan/build/
+backends/vulkan/spirv/
+*.spv
+
+# OpenCL artifacts
+backends/opencl/build/
+backends/opencl/kernels/*.bin
+*.cl_cache/
+
+# Metal artifacts (macOS)
+backends/metal/build/
+*.metallib
+*.air
+
+# =============================================================================
+# TESTING & DEVELOPMENT
+# =============================================================================
+
+# Test artifacts
+tests/results/
+tests/coverage/
+tests/temp/
+tests/reports/
+tests/output/
+*.xml
+*.junit
+coverage.info
+*.gcda
+*.gcno
+
+# Performance profiling
+*.nvprof
+*.prof
+*.trace
+*.timeline
+perf.data*
+callgrind.out*
+*.qdrep
+
+# Benchmark results
+benchmarks/results/
+benchmarks/output/
+*.benchmark
+
+# =============================================================================
+# DOCUMENTATION & ASSETS
+# =============================================================================
+
+# Documentation build outputs
+docs/build/
+docs/html/
+docs/latex/
+docs/_build/
+docs/generated/
+site/
+
+# Doxygen outputs
+doxygen_output/
+html/
+latex/
+
+# =============================================================================
+# DEVELOPMENT TOOLS & IDE
+# =============================================================================
+
+# Visual Studio files
+*.vcxproj*
+*.sln
+*.suo
+*.user
+*.aps
+*.pch
+*.vspscc
+*.vssscc
+.vscode/
+.vs/
+
+# CLion / IntelliJ
+.idea/
+cmake-build-*/
+
+# Xcode
+*.xcworkspace/
+*.xcodeproj/
+DerivedData/
+
+# Qt Creator
+*.pro.user*
+CMakeLists.txt.user*
+
+# Code::Blocks
+*.cbp
+*.layout
+*.depend
+
+# =============================================================================
+# PACKAGE MANAGERS & DEPENDENCIES
+# =============================================================================
+
+# vcpkg
+vcpkg_installed/
+.vcpkg-root
+vcpkg_*/
+
+# Conan
+conan*/
+conanbuild/
+conandata.yml
+conanfile.py
+
+# Hunter
+_builds/
+_install/
+
+# =============================================================================
+# LANGUAGE SPECIFIC
+# =============================================================================
+
+# Python artifacts (for tooling/scripts)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Node.js artifacts (for tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Rust artifacts (for tooling)
+target/
+Cargo.lock
+**/*.rs.bk
+
+# =============================================================================
+# SYSTEM & RUNTIME
+# =============================================================================
+
+# Logs
+logs/
+*.log
+server.log
+debug.log
+error.log
+
+# Process files
+*.pid
+*.sock
+*.fifo
+*.lock
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+
+# =============================================================================
+# TEMPORARY & BACKUP FILES
+# =============================================================================
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.#*
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.backup
+*.bak
+*.orig
+*.save
+
+# =============================================================================
+# MODEL FILES & LARGE ASSETS
+# =============================================================================
+
+# Model weights & tokenizers (NEVER commit these)
+*.sbs
+*.spm
+*.gguf
+*.pt
+*.pth
+*.onnx
+*.safetensors
+models/
+weights/
+tokenizers/
+
+# Large test files
+*.bin
+*.dat
+large_test_files/
+
+# =============================================================================
+# DEPLOYMENT & PRODUCTION
+# =============================================================================
+
+# Docker artifacts
+.dockerignore
+Dockerfile.local
+docker-compose.override.yml
+
+# CI/CD artifacts
+.github/workflows/local_*
+.github/environments/local_*
+
+# Deployment configs
+deploy/local_*
+deploy/staging_*
+.deploy/
+
+# =============================================================================
+# TASK MASTER & PROJECT MANAGEMENT
+# =============================================================================
+
+# Task Master files (keep .taskmaster/ structure but ignore temp files)
+.taskmaster/state.json
+.taskmaster/temp/
+.taskmaster/cache/
+.taskmaster/logs/
+
+# Project management temp files
+tasks_backup_*.json
+tasks_temp_*.json
+
+# =============================================================================
+# SAFETY PATTERNS (CATCH-ALL)
+# =============================================================================
+
+# Any local_* or temp_* files
+local_*
+temp_*
+tmp_*
+
+# Any files ending in .local
+*.local
+
+# Any directories ending in _temp
+*_temp/
+*_tmp/
+>>>>>>> clean-refactor-branch

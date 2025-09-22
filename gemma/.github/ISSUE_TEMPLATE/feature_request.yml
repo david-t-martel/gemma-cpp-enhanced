@@ -1,0 +1,229 @@
+name: Feature Request
+description: Suggest a new feature or enhancement
+title: "[FEATURE] "
+labels: ["enhancement", "needs-triage"]
+projects: ["david-t-martel/1"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please provide detailed information to help us understand your request.
+
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Search for existing requests
+      description: Please search for existing feature requests before creating a new one
+      options:
+        - label: I have searched for existing feature requests
+          required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component would this feature affect?
+      options:
+        - Core Gemma engine (gemma.cpp)
+        - MCP server
+        - CUDA backend
+        - SYCL backend
+        - Vulkan backend
+        - Testing framework
+        - Build system
+        - Documentation
+        - New component
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Critical (blocking major use case)
+        - High (important for workflow)
+        - Medium (nice to have)
+        - Low (minor improvement)
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Description
+      description: What problem does this feature solve?
+      placeholder: |
+        Describe the problem or limitation you're experiencing...
+
+        Example: Currently, it's difficult to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe your ideal solution
+      placeholder: |
+        Describe how you'd like this feature to work...
+
+        Example: I would like to be able to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Have you considered any alternative solutions?
+      placeholder: |
+        Describe any alternative solutions you've considered...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: user_type
+    attributes:
+      label: User Type
+      description: What best describes your use case?
+      options:
+        - Researcher/Academic
+        - Enterprise Developer
+        - Open Source Contributor
+        - Hobbyist/Student
+        - AI/ML Engineer
+        - DevOps/Infrastructure
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use Case Details
+      description: Provide specific details about your use case
+      placeholder: |
+        Describe your specific use case and workflow...
+
+        Example: I need this feature because I'm working on...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: feature_type
+    attributes:
+      label: Feature Type
+      description: What type of feature is this? (Select all that apply)
+      options:
+        - label: New API/Interface
+        - label: Performance improvement
+        - label: New hardware backend support
+        - label: Better error handling/diagnostics
+        - label: Developer experience improvement
+        - label: Configuration/customization option
+        - label: Integration with external tools
+        - label: Documentation/examples
+        - label: Testing/validation tools
+
+  - type: textarea
+    id: technical_details
+    attributes:
+      label: Technical Implementation Ideas
+      description: Do you have ideas about how this could be implemented?
+      placeholder: |
+        Share any technical thoughts or implementation ideas...
+
+        Example: This could be implemented by adding...
+    validations:
+      required: false
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Examples
+      description: Provide examples of the desired behavior
+      placeholder: |
+        Show examples of how this feature would be used...
+
+        Example code, command line usage, configuration, etc.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: requirements
+    attributes:
+      label: Requirements
+      description: Any specific requirements for this feature?
+      options:
+        - label: Must maintain backward compatibility
+        - label: Should work across all platforms (Linux, Windows, macOS)
+        - label: Must support all hardware backends
+        - label: Should have comprehensive documentation
+        - label: Needs extensive test coverage
+        - label: Performance critical (cannot degrade existing performance)
+        - label: Must integrate with existing CI/CD pipeline
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How would you know this feature is complete?
+      placeholder: |
+        Define clear acceptance criteria...
+
+        Example:
+        - [ ] Feature X works as described
+        - [ ] Documentation is updated
+        - [ ] Tests pass on all platforms
+    validations:
+      required: false
+
+  - type: textarea
+    id: resources
+    attributes:
+      label: Related Resources
+      description: Any related links, papers, or references?
+      placeholder: |
+        Links to:
+        - Similar implementations
+        - Research papers
+        - Specifications
+        - Related issues/discussions
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Are you willing to contribute to this feature?
+      options:
+        - label: I'm willing to implement this feature
+        - label: I can help with testing
+        - label: I can help with documentation
+        - label: I can provide feedback during development
+        - label: I can only provide requirements/feedback
+
+  - type: textarea
+    id: timeline
+    attributes:
+      label: Timeline
+      description: Do you have any timeline requirements or constraints?
+      placeholder: |
+        Example: Needed for project deadline in 3 months...
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any other context about this feature request
+      placeholder: |
+        Add any other context, mockups, diagrams, or examples...
+    validations:
+      required: false
