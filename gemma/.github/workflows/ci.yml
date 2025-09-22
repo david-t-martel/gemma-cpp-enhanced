@@ -1,0 +1,44 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop, 'feature/*', 'refactor/*']
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  CMAKE_VERSION: 3.24.0
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup CMake
+      uses: jwlawson/actions-setup-cmake@v1.14
+      with:
+        cmake-version: ${{ env.CMAKE_VERSION }}
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build gcc-11 g++-11
+
+    - name: Configure
+      run: |
+        cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+    - name: Build
+      run: cmake --build build --parallel $(nproc)
+
+    - name: Test
+      run: |
+        cd build
+        ctest --output-on-failure --parallel $(nproc)
