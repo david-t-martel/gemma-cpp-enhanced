@@ -14,6 +14,19 @@
 
 cmake_minimum_required(VERSION 3.16)  # Increased for PCH support
 
+# Handle policy compatibility for dependencies
+if(POLICY CMP0111)
+  cmake_policy(SET CMP0111 NEW)
+endif()
+
+if(POLICY CMP0091)
+  cmake_policy(SET CMP0091 NEW)
+endif()
+
+# Set policy defaults for FetchContent dependencies
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)  # option() honors normal variables
+set(CMAKE_POLICY_DEFAULT_CMP0075 NEW)  # Include file check macros honor CMAKE_REQUIRED_LIBRARIES
+
 include(FetchContent)
 
 project(gemma)
@@ -40,17 +53,53 @@ FetchContent_MakeAvailable(highway)
 
 ## Note: absl needs to be installed by sentencepiece. This will only happen if
 ## cmake is invoked with -DSPM_ENABLE_SHARED=OFF and -DSPM_ABSL_PROVIDER=module
-FetchContent_Declare(sentencepiece GIT_REPOSITORY https://github.com/google/sentencepiece GIT_TAG 53de76561cfc149d3c01037f0595669ad32a5e7c EXCLUDE_FROM_ALL)
-FetchContent_MakeAvailable(sentencepiece)
+
+# Configure sentencepiece build options before fetching
+set(SPM_ENABLE_SHARED OFF CACHE BOOL "Disable shared libraries for sentencepiece")
+set(SPM_ABSL_PROVIDER "module" CACHE STRING "Use module provider for absl")
+set(SPM_BUILD_TEST OFF CACHE BOOL "Disable sentencepiece tests")
+set(SPM_ENABLE_TCMALLOC OFF CACHE BOOL "Disable tcmalloc")
+
+FetchContent_Declare(sentencepiece
+  GIT_REPOSITORY https://github.com/google/sentencepiece
+  GIT_TAG 53de76561cfc149d3c01037f0595669ad32a5e7c
+  EXCLUDE_FROM_ALL
+)
+
+# Handle sentencepiece CMake version compatibility using the modern approach
+FetchContent_GetProperties(sentencepiece)
+if(NOT sentencepiece_POPULATED)
+  message(STATUS "Fetching sentencepiece with CMake compatibility fixes...")
+  FetchContent_Populate(sentencepiece)
+
+  # Apply temporary fix for CMake version requirement
+  set(SENTENCEPIECE_CMAKE_FIX "${sentencepiece_SOURCE_DIR}/CMakeLists.txt.fixed")
+  file(READ "${sentencepiece_SOURCE_DIR}/CMakeLists.txt" SENTENCEPIECE_CMAKE_CONTENT)
+  string(REPLACE "cmake_minimum_required(VERSION 3.1 FATAL_ERROR)"
+                 "cmake_minimum_required(VERSION 3.5 FATAL_ERROR)"
+                 SENTENCEPIECE_CMAKE_CONTENT "${SENTENCEPIECE_CMAKE_CONTENT}")
+  file(WRITE "${SENTENCEPIECE_CMAKE_FIX}" "${SENTENCEPIECE_CMAKE_CONTENT}")
+  file(RENAME "${SENTENCEPIECE_CMAKE_FIX}" "${sentencepiece_SOURCE_DIR}/CMakeLists.txt")
+
+  add_subdirectory(${sentencepiece_SOURCE_DIR} ${sentencepiece_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
 
 FetchContent_Declare(json GIT_REPOSITORY https://github.com/nlohmann/json.git GIT_TAG 9cca280a4d0ccf0c08f47a99aa71d1b0e52f8d03 EXCLUDE_FROM_ALL)
 FetchContent_MakeAvailable(json)
 
-set(BENCHMARK_ENABLE_TESTING OFF)
-set(BENCHMARK_ENABLE_GTEST_TESTS OFF)
+# Configure Google Benchmark (only if not already available)
+if(NOT TARGET benchmark::benchmark)
+  set(BENCHMARK_ENABLE_TESTING OFF)
+  set(BENCHMARK_ENABLE_GTEST_TESTS OFF)
+  set(BENCHMARK_ENABLE_INSTALL OFF)
 
-FetchContent_Declare(benchmark GIT_REPOSITORY https://github.com/google/benchmark.git GIT_TAG v1.8.2 EXCLUDE_FROM_ALL)
-FetchContent_MakeAvailable(benchmark)
+  FetchContent_Declare(benchmark
+    GIT_REPOSITORY https://github.com/google/benchmark.git
+    GIT_TAG v1.8.2
+    EXCLUDE_FROM_ALL
+  )
+  FetchContent_MakeAvailable(benchmark)
+endif()
 
 # Base source files
 set(SOURCES

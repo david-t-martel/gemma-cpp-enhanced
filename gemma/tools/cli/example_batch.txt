@@ -1,0 +1,35 @@
+# Example batch file for Enhanced Gemma CLI
+# This demonstrates various CLI commands and prompts
+
+# Show help
+/help
+
+# Show current configuration
+/config
+
+# Show model information
+/info
+
+# Test a simple prompt
+Hello, can you tell me about C++ programming?
+
+# Test a coding question
+Write a simple "Hello World" program in C++
+
+# Show command history
+/history
+
+# Clear the session for a fresh start
+/session clear
+
+# Test another prompt after clearing
+What are the benefits of modern C++?
+
+# Save the session
+/session save test_session.txt
+
+# Show final model info
+/info
+
+# Exit
+/exit

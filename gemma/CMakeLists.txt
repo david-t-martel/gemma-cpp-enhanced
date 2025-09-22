@@ -3,6 +3,21 @@
 
 cmake_minimum_required(VERSION 3.20)
 
+# Set policy versions to handle compatibility with dependencies
+# CMP0111: An imported target with INTERFACE_SOURCES may not be built by the generator
+if(POLICY CMP0111)
+  cmake_policy(SET CMP0111 NEW)
+endif()
+
+# CMP0091: MSVC runtime library flags are selected by an abstraction
+if(POLICY CMP0091)
+  cmake_policy(SET CMP0091 NEW)
+endif()
+
+# Set minimum policy version for all subdirectories to handle old dependencies
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)  # option() honors normal variables
+set(CMAKE_POLICY_DEFAULT_CMP0075 NEW)  # Include file check macros honor CMAKE_REQUIRED_LIBRARIES
+
 project(gemma_enhanced
     VERSION 1.0.0
     DESCRIPTION "Enhanced Gemma.cpp with MCP server and hardware acceleration backends"
@@ -131,6 +146,10 @@ if(GEMMA_BUILD_METAL_BACKEND AND GEMMA_BUILD_BACKENDS AND APPLE)
     add_definitions(-DGEMMA_ENABLE_METAL)
 endif()
 
+# Set policy minimum version to handle legacy dependencies like sentencepiece
+# This is required for sentencepiece which has cmake_minimum_required(VERSION 3.1)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
 # Add the original gemma.cpp as a subdirectory
 add_subdirectory(gemma.cpp)
 
@@ -171,6 +190,14 @@ if(GEMMA_BUILD_DOCS)
     endif()
 endif()
 
+# Add tools directory (CLI and other utilities)
+message(STATUS "Adding tools directory")
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tools)
+    add_subdirectory(tools)
+else()
+    message(WARNING "Tools directory not found, skipping tools")
+endif()
+
 # Create convenience targets
 add_custom_target(gemma_all
     DEPENDS gemma libgemma
@@ -183,6 +210,11 @@ endif()
 
 if(GEMMA_BUILD_BACKENDS AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/backends)
     add_dependencies(gemma_all gemma_backends)
+endif()
+
+# Add CLI tool to main target
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tools)
+    add_dependencies(gemma_all tools)
 endif()
 
 # Backend-specific convenience targets
