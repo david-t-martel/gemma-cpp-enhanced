@@ -1,0 +1,181 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "gemma-extensions"
+description = "High-performance Rust extensions for Gemma chatbot operations"
+authors = [
+    { name = "Gemma Chatbot Team", email = "team@gemma.ai" }
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["nlp", "tokenization", "performance", "gemma", "chatbot", "rust", "simd"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Linguistic",
+]
+dependencies = [
+    "maturin>=1.9.4",
+    "numpy>=1.21.0",
+    "typing-extensions>=4.0.0",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/gemma-chatbot/extensions"
+Repository = "https://github.com/gemma-chatbot/extensions"
+Documentation = "https://gemma-chatbot.github.io/extensions"
+"Bug Tracker" = "https://github.com/gemma-chatbot/extensions/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-benchmark>=4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=22.0",
+    "isort>=5.10",
+    "mypy>=1.0",
+    "ruff>=0.1",
+]
+benchmark = [
+    "pytest-benchmark>=4.0",
+    "memory-profiler>=0.60",
+    "psutil>=5.9",
+]
+docs = [
+    "sphinx>=5.0",
+    "sphinx-rtd-theme>=1.0",
+    "sphinx-autodoc-typehints>=1.19",
+]
+
+[tool.maturin]
+python-source = "python"
+module-name = "gemma_extensions._gemma_extensions"
+features = ["pyo3/extension-module"]
+
+[tool.maturin.target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=native"]
+
+[tool.maturin.target.x86_64-apple-darwin]
+rustflags = ["-C", "target-cpu=native"]
+
+[tool.maturin.target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-cpu=native"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "python/tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=gemma_extensions",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml:coverage.xml",
+    "--cov-fail-under=85",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "benchmark: marks tests as benchmarks",
+    "simd: marks tests that require SIMD support",
+    "async: marks tests that use async/await",
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # Exclude build artifacts
+  build/
+  | dist/
+  | \.eggs/
+  | \.git/
+  | \.mypy_cache/
+  | \.pytest_cache/
+  | \.venv/
+  | venv/
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "W191",  # indentation contains tabs
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["N", "F401", "F811"]
+"benches/*.py" = ["N", "F401"]
+
+[tool.coverage.run]
+source = ["gemma_extensions"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "setup.py",
+]
+
+[tool.coverage.report]
+fail_under = 85
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

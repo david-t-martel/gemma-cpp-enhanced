@@ -1,0 +1,190 @@
+# LLM Framework Configuration
+# This file defines the default configuration for the LLM Framework
+
+# Model Discovery Settings
+models:
+  # Directory containing local model files
+  models_dir: "/.models"
+  
+  # Automatically discover models in the models directory
+  auto_discover_models: true
+  
+  # Model registry cache file
+  registry_cache: ".llm_framework/model_registry.json"
+
+# Performance Settings
+performance:
+  # Maximum number of concurrent inference requests
+  max_concurrent_requests: 10
+  
+  # Default timeout for inference requests (seconds)
+  default_timeout: 300.0
+  
+  # Enable request batching for improved throughput
+  enable_batching: true
+  
+  # Batch size for concurrent requests
+  batch_size: 5
+
+# Default Generation Parameters
+generation:
+  # Default maximum tokens to generate
+  default_max_tokens: 512
+  
+  # Default sampling temperature
+  default_temperature: 0.7
+  
+  # Default top-p sampling parameter
+  default_top_p: 0.9
+  
+  # Default top-k sampling parameter
+  default_top_k: 50
+  
+  # Default frequency penalty
+  default_frequency_penalty: 0.0
+  
+  # Default presence penalty
+  default_presence_penalty: 0.0
+
+# Plugin System
+plugins:
+  # Enable plugin system
+  enable_plugins: true
+  
+  # Directories to search for plugins
+  plugin_dirs:
+    - "src/llm_framework/plugins"
+    - "plugins"
+    - "~/.llm_framework/plugins"
+  
+  # Plugin-specific configurations
+  plugin_configs:
+    example_plugin:
+      enabled: false
+      custom_setting: "value"
+
+# API Credentials (can be overridden by environment variables)
+api_credentials:
+  # OpenAI API configuration
+  openai:
+    api_key_env: "OPENAI_API_KEY"
+    organization_env: "OPENAI_ORG_ID"
+    base_url: "https://api.openai.com/v1"
+    
+  # Anthropic API configuration
+  anthropic:
+    api_key_env: "ANTHROPIC_API_KEY"
+    base_url: "https://api.anthropic.com"
+    
+  # Google/Gemini API configuration
+  google:
+    api_key_env: "GOOGLE_API_KEY"
+    project_id_env: "GOOGLE_PROJECT_ID"
+    base_url: "https://generativelanguage.googleapis.com"
+
+# Fallback and Error Handling
+fallbacks:
+  # Enable automatic fallback to alternative models
+  enable_fallbacks: true
+  
+  # Models to try as fallbacks (in order of preference)
+  fallback_models:
+    - "gemma-2b-it"      # Fast local model
+    - "gpt-3.5-turbo"    # Reliable API model
+    - "claude-3-sonnet"  # High-quality API model
+  
+  # Maximum number of fallback attempts
+  max_fallback_attempts: 3
+  
+  # Retry delay between fallback attempts (seconds)
+  fallback_retry_delay: 1.0
+
+# Logging Configuration
+logging:
+  # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  level: "INFO"
+  
+  # Log file path (null for console only)
+  file: null
+  
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # Enable performance logging
+  enable_performance_logging: true
+  
+  # Log request/response details (be careful with sensitive data)
+  log_requests: false
+
+# Cache Settings
+cache:
+  # Enable response caching
+  enable_cache: false
+  
+  # Cache backend (memory, redis, file)
+  backend: "memory"
+  
+  # Cache TTL in seconds
+  ttl: 3600
+  
+  # Maximum cache size (number of entries)
+  max_size: 1000
+
+# Security Settings
+security:
+  # Enable input sanitization
+  sanitize_inputs: true
+  
+  # Maximum input length (characters)
+  max_input_length: 100000
+  
+  # Enable rate limiting
+  enable_rate_limiting: false
+  
+  # Rate limit (requests per minute)
+  rate_limit: 100
+
+# Model-Specific Overrides
+model_overrides:
+  # Gemma models
+  "gemma-2b-it":
+    default_max_tokens: 512
+    default_temperature: 0.7
+    memory_requirement_gb: 4.0
+    
+  "gemma-7b-it":
+    default_max_tokens: 1024
+    default_temperature: 0.7
+    memory_requirement_gb: 14.0
+    
+  # OpenAI models
+  "gpt-4o":
+    default_max_tokens: 4096
+    default_temperature: 0.7
+    supports_function_calling: true
+    supports_vision: true
+    
+  "gpt-3.5-turbo":
+    default_max_tokens: 4096
+    default_temperature: 0.7
+    supports_function_calling: true
+    
+  # Claude models
+  "claude-3-sonnet":
+    default_max_tokens: 4096
+    default_temperature: 0.7
+    supports_vision: true
+
+# Development Settings
+development:
+  # Enable debug mode
+  debug: false
+  
+  # Enable verbose logging
+  verbose: false
+  
+  # Enable model performance profiling
+  enable_profiling: false
+  
+  # Save profiling results to file
+  profiling_output: ".llm_framework/profiling.json"

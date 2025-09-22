@@ -1,0 +1,127 @@
+# Context Index - Quick Lookup Reference
+# Generated: 2025-01-15
+
+versions:
+  - file: project-context-2025-01-15.json
+    date: 2025-01-15
+    type: comprehensive
+    size: full
+    agents_involved:
+      - security-auditor
+      - python-pro
+      - rust-pro
+      - legacy-modernizer
+
+quick_lookups:
+  project_location: C:\codedev\llm\stats
+  github_repo: https://github.com/david-t-martel/gemma-llm-stats
+
+  services:
+    redis:
+      port: 6379
+      status: running
+    fastapi:
+      port: 8001
+      status: running
+
+  current_issues:
+    - pre_commit_hooks_failing
+    - pytorch_2_8_0_incompatibility
+    - gemma_hf_license_401
+    - test_coverage_low_5_11_percent
+
+  recent_fixes:
+    - pyo3_vulnerability_0_24_2
+    - duplicate_code_removed_96_lines
+    - logging_standardized_44_files
+    - syntax_errors_fixed_all
+    - imports_fixed_infrastructure_llm
+
+  key_commands:
+    run_agent: uv run python main.py --lightweight
+    run_tests: uv run pytest tests/ -v
+    check_python: uv run ruff check src --fix
+    check_rust: cargo clippy -- -D warnings
+    build_rust: uv run maturin develop --release
+    start_redis: redis-server
+    start_api: uv run python -m src.server.main
+
+  model_locations:
+    gemma_2b: ./models/gemma-2b-it
+    gemma_7b: ./models/gemma-7b-it
+    phi_2: ./models/phi-2 (5.3GB downloaded)
+
+  critical_files:
+    entry_point: main.py
+    agent_core: src/agent/core.py
+    react_agent: src/agent/react_agent.py
+    rag_integration: src/agent/rag_integration.py
+    rust_extensions: rust_extensions/src/lib.rs
+    rag_redis: rag-redis-system/src/lib.rs
+
+  agent_patterns:
+    successful_combinations:
+      - security_then_python_then_rust
+      - parallel_language_specific
+    avoid:
+      - mixing_languages_in_single_agent
+      - deploying_without_security_check
+
+  performance_metrics:
+    memory_target: <400MB
+    startup_target: <1s
+    inference_target: <50ms/token
+    test_coverage_target: 85%
+    current_test_coverage: 5.11%
+
+  dependencies_critical:
+    python: 3.13
+    rust: latest
+    pyo3: 0.24.2
+    pytorch: 2.8.0 (incompatible)
+    redis: required
+    uv: required
+
+  conventions:
+    always_use_uv: true
+    absolute_imports: true
+    zero_warnings: true
+    type_hints: required
+    no_print_statements: true
+    error_handling: mandatory
+
+tags:
+  - llm
+  - gemma
+  - react-agent
+  - rust-extensions
+  - rag-redis
+  - mcp-server
+  - fastapi
+  - pytorch
+  - gemma-cpp
+
+search_keywords:
+  - local llm framework
+  - react reasoning acting
+  - pyo3 python rust
+  - gemma cpp integration
+  - rag redis system
+  - multi tier memory
+  - simd optimization
+  - mcp server
+  - fastapi websocket
+  - tool calling
+
+context_restoration:
+  primary: project-context-2025-01-15.json
+  summary: PROJECT_SUMMARY.md
+  index: CONTEXT_INDEX.yaml
+
+next_session_checklist:
+  - check_redis_running
+  - activate_virtual_env
+  - pull_latest_changes
+  - run_test_suite
+  - review_todo_md
+  - check_pre_commit_status

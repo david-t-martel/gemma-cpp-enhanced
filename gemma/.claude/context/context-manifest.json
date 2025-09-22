@@ -1,0 +1,69 @@
+{
+  "project": "Gemma.cpp Windows CLI",
+  "version": "1.0.0",
+  "created": "2025-01-17",
+  "contexts": [
+    {
+      "file": "gemma-windows-cli-context-2025-01-17.md",
+      "timestamp": "2025-01-17",
+      "type": "comprehensive",
+      "description": "Full project context including architecture, state, and roadmap",
+      "sections": [
+        "Project Overview",
+        "Current State",
+        "Design Decisions",
+        "File Structure",
+        "Agent Coordination History",
+        "Technical Details",
+        "Future Roadmap",
+        "Critical Information",
+        "Testing Strategy",
+        "Contact and Resources"
+      ],
+      "key_entities": [
+        "Gemma.cpp Windows CLI Project",
+        "Windows-native gemma.exe",
+        "Python CLI Wrapper",
+        "Model Compatibility Issue",
+        "Build System Configuration"
+      ],
+      "status": {
+        "working": [
+          "Windows-native gemma.exe compilation",
+          "Python CLI wrapper",
+          "Static build without DLL dependencies"
+        ],
+        "issues": [
+          "Error 3221226356 when loading models",
+          "Griffin/RecurrentGemma disabled",
+          "Model format compatibility"
+        ],
+        "next_steps": [
+          "Fix model loading error",
+          "Install Visual C++ runtime",
+          "Execute test suite"
+        ]
+      }
+    }
+  ],
+  "quick_restore": {
+    "project_path": "C:\\codedev\\llm\\gemma",
+    "repo_url": "https://github.com/david-t-martel/dtm-gemma",
+    "main_executable": "gemma.cpp\\build\\gemma.exe",
+    "cli_wrapper": "gemma-cli.py",
+    "models_path": "C:\\codedev\\llm\\.models",
+    "critical_issue": "Runtime error 3221226356 when loading models"
+  },
+  "agent_handoff": {
+    "last_active_agent": "context-manager",
+    "previous_agents": [
+      "deployment-engineer",
+      "cpp-pro",
+      "python-pro",
+      "test-automator",
+      "code-reviewer"
+    ],
+    "recommended_next_agent": "cpp-pro or windows-specialist",
+    "handoff_notes": "Need to debug model loading issue - likely Visual C++ runtime or model format compatibility problem"
+  }
+}

@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  # Redis service for RAG system
+  redis:
+    image: redis:7-alpine
+    container_name: llm-redis
+    ports:
+      - "${REDIS_HOST_PORT:-6380}:6379"  # Map to host port 6380 by default (Windows friendly)
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --appendfsync everysec --maxmemory 512mb --maxmemory-policy allkeys-lru
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - llm-network
+
+  # Main LLM application
+  llm-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: llm-chatbot
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"  # FastAPI server
+      - "8001:8001"  # MCP server
+    environment:
+      - DOCKER_CONTAINER=true
+      - REDIS_URL=redis://redis:6379  # Internal Docker network uses standard port
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_MAX_CONNECTIONS=20
+      - REDIS_CONNECTION_TIMEOUT=5
+      - REDIS_SOCKET_TIMEOUT=10
+      - REDIS_ENABLE_FALLBACK=false
+      - HF_TOKEN=${HF_TOKEN}
+      - HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+      - GEMMA_CACHE_DIR=/app/models
+      - PYTHONUNBUFFERED=1
+      - RUST_LOG=info
+    volumes:
+      - ./models:/app/models
+      - ./models_cache:/app/models_cache
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    networks:
+      - llm-network
+    command: >
+      sh -c "
+        echo 'Starting LLM application...' &&
+        uv run python main.py --lightweight
+      "
+
+  # RAG-Redis MCP Server
+  rag-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: rust-builder
+    container_name: rag-mcp-server
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "9000:9000"
+    environment:
+      - DOCKER_CONTAINER=true
+      - REDIS_URL=redis://redis:6379  # Internal Docker network
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_MAX_CONNECTIONS=10
+      - REDIS_ENABLE_FALLBACK=false
+      - RUST_LOG=debug
+    volumes:
+      - ./rag-redis-system/mcp-server/mcp-config.json:/config/mcp-config.json:ro
+    networks:
+      - llm-network
+    command: /build/rag-redis-system/target/release/rag-redis-mcp-server
+
+  # Optional: Jupyter notebook for development
+  jupyter:
+    image: jupyter/scipy-notebook:python-3.11
+    container_name: llm-jupyter
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    volumes:
+      - ./:/home/jovyan/work
+    networks:
+      - llm-network
+    profiles:
+      - dev
+
+networks:
+  llm-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local

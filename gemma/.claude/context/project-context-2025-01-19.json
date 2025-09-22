@@ -1,0 +1,202 @@
+{
+  "timestamp": "2025-01-19T12:00:00Z",
+  "project": {
+    "name": "Gemma.cpp Enhanced",
+    "description": "Production-ready C++ inference engine for Google's Gemma models with hardware acceleration",
+    "repository": "https://github.com/david-t-martel/dtm-gemma.git",
+    "root_path": "C:\\codedev\\llm\\gemma",
+    "latest_commits": {
+      "ea2dca7": "Major enhancement implementation",
+      "3e2c3f9": "CI/CD optimization"
+    }
+  },
+  "architecture": {
+    "layers": {
+      "core": {
+        "path": "gemma/",
+        "description": "Template-heavy C++ with Highway SIMD library",
+        "components": ["gemma.h/cc", "configs.h/cc", "attention.h/cc", "griffin.h/cc", "vit.h/cc", "kv_cache.h/cc"]
+      },
+      "enhancement": {
+        "path": "backends/, mcp/",
+        "description": "Hardware acceleration and MCP server",
+        "components": ["CUDA backend", "SYCL backend", "Vulkan backend", "MCP stdio server"]
+      },
+      "testing": {
+        "path": "tests/",
+        "description": "Comprehensive test framework",
+        "components": ["18 test files", "Unit tests", "Integration tests", "Performance benchmarks"]
+      }
+    },
+    "design_patterns": [
+      "CRTP for static polymorphism",
+      "Template metaprogramming for tensor operations",
+      "Factory pattern for backend instantiation",
+      "RAII for resource management",
+      "Memory-mapped I/O for model loading"
+    ]
+  },
+  "technology_stack": {
+    "language": "C++20",
+    "build_system": "CMake 4.1.1",
+    "libraries": {
+      "simd": "Highway",
+      "tokenization": "SentencePiece",
+      "json": "nlohmann/json",
+      "testing": "Google Test, Google Benchmark"
+    },
+    "hardware_sdks": {
+      "cuda": "CUDA 13.0",
+      "intel": "oneAPI 2025.1",
+      "vulkan": "Vulkan SDK latest"
+    }
+  },
+  "current_state": {
+    "completed_features": [
+      "CUDA backend with memory pooling and stream management",
+      "Intel SYCL backend for GPU/NPU",
+      "Vulkan backend for cross-platform GPU",
+      "MCP server with stdio transport",
+      "Build optimizations (PCH, ccache, unity builds)",
+      "CI/CD with self-hosted runners",
+      "Pre-commit framework with auto-claude"
+    ],
+    "work_in_progress": [
+      "Windows compilation (linker issues with ApplyDRYPenalty)",
+      "WebSocket MCP transport",
+      "Flash Attention v3"
+    ],
+    "known_issues": [
+      {
+        "file": "ops/ops-inl.h:1239",
+        "issue": "Replace recent_tokens.empty() with recent_tokens.size() > 0",
+        "status": "partially fixed with HWY_INLINE"
+      },
+      {
+        "file": "gemma/gemma.cc:464",
+        "issue": "Lambda capture syntax error",
+        "fix": "Change [&, &recent_tokens] to [&]"
+      },
+      {
+        "issue": "Long compilation times without ccache",
+        "mitigation": "Use optimized_build.sh script"
+      }
+    ]
+  },
+  "performance": {
+    "baselines": {
+      "inference": "50-500 tokens/second on GPUs",
+      "build_time": "3-5 minutes with optimizations, 10+ minutes without",
+      "first_token": "< 100ms on modern hardware",
+      "memory": "< 4GB for 2B model"
+    },
+    "optimizations": [
+      "Precompiled headers (30-50% compilation reduction)",
+      "ccache for incremental builds",
+      "Unity builds for faster linking",
+      "SFP models for 2x speed improvement",
+      "Memory-mapped model loading"
+    ]
+  },
+  "build_commands": {
+    "quick_optimized": "./optimized_build.sh",
+    "cmake_presets": {
+      "windows_fast_debug": "cmake --preset windows-fast-debug",
+      "make": "cmake --preset make && cmake --build --preset make -j $(nproc)"
+    },
+    "with_backends": "cmake -B build -DGEMMA_AUTO_DETECT_BACKENDS=ON",
+    "full_featured": "cmake -B build -DGEMMA_BUILD_MCP_SERVER=ON -DGEMMA_BUILD_BACKENDS=ON -DGEMMA_BUILD_ENHANCED_TESTS=ON"
+  },
+  "file_locations": {
+    "project_root": "C:\\codedev\\llm\\gemma",
+    "build_tools": "C:\\users\\david\\.local\\bin",
+    "model_files": "C:\\codedev\\llm\\.models",
+    "auto_claude": "C:\\users\\david\\.claude",
+    "cmake_path": "C:\\Program Files\\CMake\\bin\\cmake"
+  },
+  "model_configuration": {
+    "available_models": {
+      "path": "C:\\codedev\\llm\\.models\\gemma-gemmacpp-2b-it-v3",
+      "files": ["2b-it.sbs", "tokenizer.spm"]
+    },
+    "supported_variants": {
+      "gemma2": ["2B", "9B", "27B"],
+      "gemma3": ["270M", "1B", "4B", "12B", "27B"],
+      "griffin": ["2B recurrent"],
+      "paligemma2": ["3B-224", "10B-448"]
+    }
+  },
+  "agent_coordination": {
+    "successful_agents": {
+      "cpp-pro": "Created CUDA backend implementation (cuda_memory.cpp, cuda_stream_manager.cpp, cuda_kernel_launcher.cpp)",
+      "backend-architect": "Configured Intel SYCL backend, created backend manager system",
+      "deployment-engineer": "Created CI/CD pipelines, Docker configurations, pre-commit framework"
+    },
+    "successful_combinations": [
+      "cpp-pro + backend-architect for hardware acceleration",
+      "deployment-engineer + quality-engineer for CI/CD setup"
+    ],
+    "dependencies": [
+      "Backend implementation depends on build system optimization",
+      "MCP server requires backend completion for GPU acceleration"
+    ]
+  },
+  "future_roadmap": {
+    "immediate_priorities": [
+      "Fix remaining Windows compilation issues",
+      "Complete WebSocket MCP transport",
+      "Validate all hardware backends"
+    ],
+    "planned_features": [
+      "Flash Attention v3 implementation",
+      "Speculative decoding (2-3x speedup)",
+      "Metal backend for macOS",
+      "Model quantization (INT8, INT4)"
+    ],
+    "performance_opportunities": [
+      "Kernel fusion for attention layers",
+      "Graph optimization for inference",
+      "Dynamic batching for throughput"
+    ],
+    "technical_debt": [
+      "Clean up build directories from git",
+      "Refactor ops-inl.h for modularity",
+      "Update documentation with latest changes"
+    ]
+  },
+  "testing_strategy": {
+    "categories": {
+      "unit": "6 test files - No model dependencies",
+      "integration": "3 test files - Full pipeline tests",
+      "performance": "1 benchmark file - Performance metrics",
+      "backends": "4 test files - Hardware-specific",
+      "functional": "2 test files - Cross-backend validation",
+      "mcp": "1 test file - MCP protocol compliance"
+    },
+    "execution": {
+      "quick": "./build/test_unit",
+      "full": "python run_tests.py all",
+      "specific": "./tests/run_tests.sh [unit|integration|benchmarks]"
+    }
+  },
+  "conventions": {
+    "coding": [
+      "Templates for SIMD operations",
+      "CRTP for static polymorphism",
+      "Memory-mapped I/O for models",
+      "Exception-based error handling with graceful degradation"
+    ],
+    "build": [
+      "Use precompiled headers",
+      "Enable ccache for all builds",
+      "Use auto-claude for quality checks",
+      "Prefer CMake presets over manual configuration"
+    ],
+    "testing": [
+      "Google Test for unit tests",
+      "Google Benchmark for performance",
+      "Comprehensive coverage requirements",
+      "Backend-specific validation"
+    ]
+  }
+}

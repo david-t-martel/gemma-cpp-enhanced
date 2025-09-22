@@ -1,0 +1,485 @@
+{
+  "metadata": {
+    "timestamp": "2025-09-16T00:00:00Z",
+    "project_name": "gemma.cpp",
+    "context_version": "1.0.0",
+    "last_updated_by": "context-manager",
+    "status": "build_blocked"
+  },
+
+  "project_overview": {
+    "goals": "Build and run gemma.cpp, a lightweight C++ inference engine for Google's Gemma foundation models",
+    "description": "High-performance C++ implementation for running Gemma foundation models locally with optimized SIMD operations",
+    "key_architectural_decisions": {
+      "build_system": "CMake with Visual Studio 17 2022 generator",
+      "compiler": "MSVC v143 (ClangCL preferred but not available)",
+      "platform": "Windows x64 (with WSL2 fallback option)",
+      "cpp_standard": "C++20",
+      "optimization_strategy": "Highway SIMD library for vectorization"
+    },
+    "technology_stack": {
+      "core_libraries": [
+        "Highway (SIMD operations)",
+        "SentencePiece (tokenization)",
+        "nlohmann/json (JSON parsing)",
+        "Google Benchmark (performance testing)",
+        "Google Test (unit testing)"
+      ],
+      "build_tools": [
+        "CMake 3.25+",
+        "Visual Studio 2022",
+        "vcpkg (optional package manager)"
+      ],
+      "supported_models": [
+        "Gemma 2 (2b, 7b, 9b, 27b)",
+        "Gemma 3 (experimental)",
+        "Griffin models",
+        "PaliGemma (vision-language)",
+        "CodeGemma (code generation)",
+        "RecurrentGemma"
+      ]
+    },
+    "team_conventions": {
+      "design_patterns": [
+        "Data-oriented design for performance",
+        "Template-based SIMD optimization",
+        "RAII memory management",
+        "Visitor pattern for serialization",
+        "Strategy pattern for compression",
+        "Abstract factory for I/O operations"
+      ],
+      "coding_standards": [
+        "Highway SIMD macro conventions",
+        "Type-safe error handling",
+        "Compile-time shape checking",
+        "Consistent namespace usage"
+      ]
+    }
+  },
+
+  "current_state": {
+    "phase": "build_configuration",
+    "recently_implemented": {
+      "environment_setup": {
+        "description": "Created .env file for configuration",
+        "files": ["C:\\codedev\\llm\\gemma\\.env"],
+        "status": "completed"
+      },
+      "kaggle_downloader": {
+        "description": "Bash script for downloading Kaggle models",
+        "files": ["C:\\codedev\\llm\\gemma\\scripts\\download-kaggle-model.sh"],
+        "features": [
+          "Kaggle CLI and curl fallback",
+          "Credential management",
+          "Archive extraction",
+          "Progress tracking"
+        ],
+        "status": "completed"
+      },
+      "build_scripts": {
+        "description": "PowerShell and batch scripts for Windows builds",
+        "files": [
+          "C:\\codedev\\llm\\gemma\\build-gemma.ps1",
+          "C:\\codedev\\llm\\gemma\\build-msvc.bat"
+        ],
+        "status": "completed"
+      }
+    },
+    "work_in_progress": {
+      "build_process": {
+        "description": "Building gemma.cpp executable",
+        "current_blocker": "LNK1104: cannot open file 'griffin.obj'",
+        "error_details": {
+          "file": "griffin.obj",
+          "size": "0 bytes",
+          "issue": "File appears locked by system process",
+          "suspected_cause": "Windows Defender or antivirus software",
+          "location": "C:\\codedev\\llm\\gemma\\gemma.cpp\\build\\gemma\\CMakeFiles\\libgemma.dir\\griffin.obj"
+        },
+        "attempted_solutions": [
+          "Clean rebuild (failed)",
+          "Manual file deletion (access denied)",
+          "Build directory recreation (issue persists)",
+          "vcpkg configuration (not the root cause)"
+        ],
+        "status": "blocked"
+      }
+    },
+    "known_issues": [
+      {
+        "id": "BUILD_001",
+        "severity": "critical",
+        "description": "griffin.obj file locking prevents build completion",
+        "impact": "Cannot generate gemma.exe executable",
+        "workarounds": [
+          "Add build directory to antivirus exclusions",
+          "Build in WSL2 environment",
+          "Disable real-time protection temporarily",
+          "Use different build directory outside system paths"
+        ]
+      },
+      {
+        "id": "BUILD_002",
+        "severity": "low",
+        "description": "Type conversion warnings in build output",
+        "impact": "Non-blocking warnings during compilation",
+        "files_affected": ["gemma.cc", "ops.h"]
+      },
+      {
+        "id": "ENV_001",
+        "severity": "medium",
+        "description": "ClangCL not available for optimal builds",
+        "impact": "Reduced optimization capabilities",
+        "resolution": "Install LLVM/Clang toolchain"
+      }
+    ],
+    "technical_debt": [
+      "Resolve Windows-specific build issues",
+      "Document vcpkg integration properly",
+      "Setup CI/CD pipeline for automated builds",
+      "Create comprehensive build troubleshooting guide"
+    ],
+    "performance_baselines": {
+      "status": "not_established",
+      "reason": "Build not yet completed",
+      "planned_metrics": [
+        "Token generation speed (tokens/second)",
+        "Model loading time",
+        "Memory usage per model size",
+        "Batch processing throughput"
+      ]
+    }
+  },
+
+  "design_decisions": {
+    "architecture": {
+      "module_structure": {
+        "gemma/": "Core model implementation",
+        "compression/": "Model compression utilities",
+        "ops/": "SIMD operations and kernels",
+        "io/": "I/O and file handling",
+        "util/": "Common utilities",
+        "backprop/": "Training and fine-tuning support"
+      },
+      "key_classes": {
+        "Gemma": "Main model class",
+        "GemmaImpl": "Implementation details",
+        "CompressedWeights": "Weight compression management",
+        "KVCache": "Key-value cache for inference",
+        "Activations": "Activation storage and management"
+      }
+    },
+    "api_design": {
+      "patterns": [
+        "Streaming token generation with callbacks",
+        "Batch processing with AllQueries/QBatch",
+        "Async model loading",
+        "Configurable sampling strategies"
+      ],
+      "interfaces": {
+        "StreamFunc": "Token streaming callback",
+        "AcceptFunc": "Token acceptance callback",
+        "RuntimeConfig": "Runtime configuration",
+        "ModelConfig": "Model-specific settings"
+      }
+    },
+    "build_configuration": {
+      "cmake_options": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_STANDARD": "20",
+        "BUILD_TESTING": "ON (optional)",
+        "WEIGHT_TYPE": "sfp (for smaller models)"
+      },
+      "compiler_flags": {
+        "MSVC": "/O2 /arch:AVX2 /fp:fast",
+        "planned_clang": "-O3 -march=native -ffast-math"
+      }
+    },
+    "security": {
+      "credential_management": "Environment variables only",
+      "model_verification": "SHA256 checksums for weights",
+      "sandboxing": "Process isolation for inference"
+    }
+  },
+
+  "code_patterns": {
+    "conventions": {
+      "naming": {
+        "classes": "PascalCase",
+        "functions": "PascalCase for public, snake_case for private",
+        "variables": "snake_case",
+        "constants": "kConstantName",
+        "templates": "T prefix (TConfig, TWeight)"
+      },
+      "file_organization": {
+        "headers": ".h extension with include guards",
+        "implementation": ".cc extension",
+        "tests": "_test.cc suffix",
+        "benchmarks": "_benchmark.cc suffix"
+      }
+    },
+    "common_patterns": {
+      "simd_operations": {
+        "pattern": "Highway HWY_NAMESPACE macros",
+        "example": "HWY_FOREACH_128(SimdFunc)",
+        "purpose": "Multi-target SIMD compilation"
+      },
+      "memory_management": {
+        "pattern": "RAII with unique_ptr/shared_ptr",
+        "custom_allocators": "AlignedAllocator for SIMD",
+        "pool_allocation": "For activation tensors"
+      },
+      "error_handling": {
+        "pattern": "Result<T> or StatusOr<T>",
+        "logging": "Structured logging with levels",
+        "assertions": "HWY_ASSERT for debug builds"
+      }
+    },
+    "testing_strategies": {
+      "unit_tests": {
+        "framework": "Google Test",
+        "coverage_target": "85%",
+        "mocking": "GMock for dependencies"
+      },
+      "integration_tests": {
+        "model_loading": "Test all supported formats",
+        "inference": "Golden output comparison",
+        "performance": "Regression testing with benchmarks"
+      },
+      "simd_testing": {
+        "targets": ["SSE4", "AVX2", "AVX-512"],
+        "validation": "Bit-exact comparison across targets"
+      }
+    }
+  },
+
+  "agent_coordination_history": {
+    "agents_involved": [
+      {
+        "agent": "general-purpose",
+        "tasks": [
+          "Initial codebase analysis",
+          "Architecture documentation review",
+          "Build system investigation",
+          "Testing workflow analysis"
+        ],
+        "contributions": [
+          "Identified modular architecture",
+          "Documented build requirements",
+          "Found SIMD optimization patterns"
+        ]
+      },
+      {
+        "agent": "deployment-engineer",
+        "tasks": [
+          "Windows build troubleshooting",
+          "griffin.obj locking investigation",
+          "Build script creation"
+        ],
+        "contributions": [
+          "Created build-gemma.ps1",
+          "Identified antivirus interference",
+          "Documented workarounds"
+        ]
+      }
+    ],
+    "successful_combinations": [
+      {
+        "agents": ["multiple general-purpose agents"],
+        "approach": "Parallel codebase analysis",
+        "outcome": "Comprehensive understanding in single pass"
+      }
+    ],
+    "agent_specific_context": {
+      "build_specialist": {
+        "focus": "Windows MSVC build issues",
+        "knowledge": "griffin.obj locking, vcpkg setup",
+        "next_steps": "WSL2 build attempt"
+      },
+      "performance_specialist": {
+        "focus": "SIMD optimization",
+        "knowledge": "Highway library usage patterns",
+        "next_steps": "Benchmark setup after build"
+      }
+    },
+    "cross_agent_dependencies": {
+      "build_to_test": "Build must complete before testing",
+      "model_to_benchmark": "Model download required for benchmarks",
+      "docs_to_implementation": "Architecture understanding guides fixes"
+    }
+  },
+
+  "future_roadmap": {
+    "immediate_priorities": [
+      {
+        "task": "Resolve griffin.obj build issue",
+        "approaches": [
+          "WSL2 build environment setup",
+          "Antivirus exclusion configuration",
+          "Alternative build directory"
+        ],
+        "success_criteria": "gemma.exe successfully built"
+      },
+      {
+        "task": "Test with downloaded model",
+        "model_path": "/c/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/",
+        "files_available": ["2b-it.sbs", "tokenizer.spm"],
+        "command": "gemma.exe --model 2b-it.sbs --tokenizer tokenizer.spm"
+      }
+    ],
+    "planned_features": [
+      "Benchmark performance with various batch sizes",
+      "Test streaming generation",
+      "Evaluate memory usage",
+      "Compare sfp vs standard weights"
+    ],
+    "identified_improvements": [
+      {
+        "area": "build_system",
+        "improvements": [
+          "Install ClangCL for better optimization",
+          "Setup vcpkg for dependency management",
+          "Create Docker build environment"
+        ]
+      },
+      {
+        "area": "performance",
+        "improvements": [
+          "Enable auto-tuning for kernel selection",
+          "Optimize for small batch latency",
+          "Implement model quantization"
+        ]
+      }
+    ],
+    "technical_debt_priorities": [
+      "Document all build workarounds",
+      "Create automated build validation",
+      "Setup regression test suite",
+      "Improve error messages and logging"
+    ],
+    "performance_optimization_opportunities": [
+      "Use -sfp models for 50% size reduction",
+      "Enable flash attention where applicable",
+      "Optimize KV cache allocation",
+      "Implement dynamic batching"
+    ]
+  },
+
+  "environment_details": {
+    "paths": {
+      "project_root": "C:\\codedev\\llm\\gemma",
+      "gemma_cpp_source": "C:\\codedev\\llm\\gemma\\gemma.cpp",
+      "build_directory": "C:\\codedev\\llm\\gemma\\gemma.cpp\\build",
+      "model_directory": "C:\\codedev\\llm\\.models",
+      "scripts_directory": "C:\\codedev\\llm\\gemma\\scripts"
+    },
+    "models": {
+      "downloaded": {
+        "path": "C:\\codedev\\llm\\.models\\gemma-gemmacpp-2b-it-v3",
+        "files": [
+          {
+            "name": "2b-it.sbs",
+            "size": "5GB",
+            "type": "compressed weights"
+          },
+          {
+            "name": "tokenizer.spm",
+            "size": "4.2MB",
+            "type": "sentencepiece model"
+          }
+        ]
+      }
+    },
+    "created_utilities": [
+      {
+        "file": "download-kaggle-model.sh",
+        "purpose": "Download models from Kaggle",
+        "features": ["CLI/curl fallback", "credential management", "progress tracking"]
+      },
+      {
+        "file": "build-gemma.ps1",
+        "purpose": "PowerShell build script for Windows",
+        "features": ["dependency checking", "CMake configuration", "build automation"]
+      },
+      {
+        "file": "build-msvc.bat",
+        "purpose": "Batch script for MSVC builds",
+        "features": ["environment setup", "compiler configuration"]
+      }
+    ],
+    "documentation": [
+      {
+        "file": ".claude/tasks/gemma-cpp-build/onboarding.md",
+        "purpose": "Build setup and onboarding guide",
+        "sections": ["prerequisites", "build steps", "troubleshooting"]
+      }
+    ]
+  },
+
+  "critical_context": {
+    "current_blocker": {
+      "issue": "griffin.obj file locking prevents linking",
+      "error_code": "LNK1104",
+      "file_state": {
+        "path": "build\\gemma\\CMakeFiles\\libgemma.dir\\griffin.obj",
+        "size": 0,
+        "status": "locked by system"
+      },
+      "suspected_causes": [
+        "Windows Defender real-time scanning",
+        "Third-party antivirus software",
+        "Windows file indexing service",
+        "Incomplete previous build process"
+      ],
+      "workarounds": {
+        "primary": "Build in WSL2 environment",
+        "secondary": [
+          "Add exclusion to Windows Defender",
+          "Use different build directory",
+          "Temporarily disable real-time protection",
+          "Clean build with admin privileges"
+        ]
+      },
+      "attempted_fixes": {
+        "clean_rebuild": {
+          "command": "cmake --build . --target clean && cmake --build . --config Release",
+          "result": "failed - file still locked"
+        },
+        "manual_deletion": {
+          "command": "del /f griffin.obj",
+          "result": "access denied"
+        },
+        "directory_recreation": {
+          "commands": ["rmdir /s build", "mkdir build", "cmake .."],
+          "result": "issue reoccurs on build"
+        }
+      }
+    },
+    "next_steps": [
+      "Try WSL2 build as primary workaround",
+      "Configure Windows Defender exclusions",
+      "Consider using GitHub Codespaces or Docker",
+      "Document successful workaround for future reference"
+    ]
+  },
+
+  "session_notes": {
+    "key_insights": [
+      "griffin.obj locking is Windows-specific issue",
+      "Build system otherwise properly configured",
+      "Model files successfully downloaded and ready",
+      "vcpkg not required but could simplify dependencies"
+    ],
+    "action_items": [
+      "Implement WSL2 build workflow",
+      "Create build troubleshooting guide",
+      "Test model inference once build succeeds",
+      "Setup performance benchmarking"
+    ],
+    "dependencies": [
+      "Build completion blocks all testing",
+      "Model already available for testing",
+      "Documentation exists for usage"
+    ]
+  }
+}

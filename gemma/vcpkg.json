@@ -1,0 +1,75 @@
+{
+  "name": "gemma-enhanced",
+  "version": "1.0.0",
+  "builtin-baseline": "01f602195983451bc83e72f4214af2cbc495aa94",
+  "dependencies": [
+    {
+      "name": "gtest",
+      "version>=": "1.15.0"
+    },
+    {
+      "name": "benchmark",
+      "version>=": "1.9.0"
+    },
+    {
+      "name": "nlohmann-json",
+      "version>=": "3.11.3"
+    },
+    {
+      "name": "sentencepiece",
+      "version>=": "0.2.0"
+    },
+    {
+      "name": "highway",
+      "version>=": "1.2.0"
+    },
+    {
+      "name": "intel-mkl",
+      "platform": "windows & x64"
+    },
+    {
+      "name": "tbb",
+      "version>=": "2021.11.0"
+    }
+  ],
+  "features": {
+    "performance": {
+      "description": "High-performance build with all optimizations",
+      "dependencies": [
+        "gperftools",
+        "mimalloc",
+        "tracy"
+      ]
+    },
+    "testing": {
+      "description": "Extended testing capabilities",
+      "dependencies": [
+        "catch2",
+        "doctest"
+      ]
+    },
+    "mcp": {
+      "description": "Model Context Protocol server",
+      "dependencies": [
+        "crow",
+        "websocketpp"
+      ]
+    },
+    "acceleration": {
+      "description": "Hardware acceleration backends",
+      "dependencies": [
+        {
+          "name": "opencl",
+          "platform": "!osx"
+        },
+        "vulkan-headers"
+      ]
+    }
+  },
+  "overrides": [
+    {
+      "name": "highway",
+      "version": "1.2.0"
+    }
+  ]
+}

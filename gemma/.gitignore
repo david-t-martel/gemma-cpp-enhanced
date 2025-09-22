@@ -1,0 +1,23 @@
+# Build outputs
+build/
+dist/
+*.cache/
+
+# Binary outputs
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model files
+*.sbs
+*.spm
+*.gguf
