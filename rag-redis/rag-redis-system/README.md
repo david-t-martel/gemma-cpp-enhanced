@@ -33,7 +33,7 @@ A high-performance, production-ready Retrieval-Augmented Generation (RAG) system
 - **Rust**: 1.75+ (latest stable recommended)
 - **C++ Compiler**: GCC 9+, Clang 11+, or MSVC 2019+
 - **CMake**: 3.20+ (for C++ examples)
-- **Python**: 3.8+ (for MCP server, optional)
+- **Python**: Not required (native Rust MCP server used)
 
 ## 🔧 Installation
 

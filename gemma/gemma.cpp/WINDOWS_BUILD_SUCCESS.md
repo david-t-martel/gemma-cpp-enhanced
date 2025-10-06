@@ -33,28 +33,21 @@ unzip -q cmake.zip
 ./cmake-3.27.7-windows-x86_64/bin/cmake.exe --version
 ```
 
-### Step 2: Modify CMakeLists.txt (Required Fix)
+### Step 2: Configure Build (Disable Griffin via CMake Option)
 
-**Problem:** The original `griffin.cc` file causes permission errors during Windows compilation.
+You no longer need to manually edit `CMakeLists.txt` or swap source files. A CMake option now controls inclusion of the full recurrent Griffin implementation.
 
-**Solution:** Replace `griffin.cc` with a stub implementation:
+Use `-DGEMMA_DISABLE_GRIFFIN=ON` to build a lightweight version with the built-in stub (`griffin_stub.cc`). Omit or set to `OFF` to enable the full implementation (`griffin.cc`).
 
-```cmake
-# In CMakeLists.txt, change these lines:
-# OLD:
-  gemma/griffin.cc
-  gemma/griffin.h
+```bash
+# Set CMake executable path
+export CMAKE_EXE="./cmake-3.27.7-windows-x86_64/bin/cmake.exe"
 
-# NEW:
-  gemma/griffin_stub.cc  # Stub implementation instead of griffin.cc
-  gemma/griffin.h
+# Configure with Griffin disabled (stub)
+${CMAKE_EXE} -S . -B build_vs_no_griffin -G "Visual Studio 17 2022" -A x64 -DGEMMA_DISABLE_GRIFFIN=ON
 ```
 
-### Step 3: Create Griffin Stub (Required)
-
-Create file `gemma/griffin_stub.cc` with minimal implementation to satisfy linker requirements.
-
-### Step 4: Configure Build
+### Step 3: Build
 
 ```bash
 # Set CMake executable path
@@ -63,8 +56,6 @@ export CMAKE_EXE="./cmake-3.27.7-windows-x86_64/bin/cmake.exe"
 # Configure with Visual Studio
 ${CMAKE_EXE} -S . -B build_vs_no_griffin -G "Visual Studio 17 2022" -A x64
 ```
-
-### Step 5: Build
 
 ```bash
 # Build the executable
@@ -141,9 +132,8 @@ However, the manual approach above was more successful.
 
 ## Files Created/Modified
 
-1. **Modified:** `CMakeLists.txt` - Replaced griffin.cc with griffin_stub.cc
-2. **Created:** `gemma/griffin_stub.cc` - Stub implementation
-3. **Generated:** `build_vs_no_griffin/` - Build directory
-4. **Output:** `gemma.exe` - Final Windows executable
+1. **Generated:** `build_vs_no_griffin/` - Build directory
+2. **Output:** `gemma.exe` - Final Windows executable
+3. (Optional) Source toggle: `griffin.cc` (full) vs `griffin_stub.cc` (stub) selected automatically via `GEMMA_DISABLE_GRIFFIN`.
 
 This is a fully functional Windows-native Gemma inference engine!

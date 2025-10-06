@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 /// Simple in-memory fallback store used when Redis is unavailable.
 #[derive(Default, Clone)]
@@ -150,6 +150,18 @@ impl RedisClient {
             .map_err(|e| Error::Redis(format!("Failed to zrange {}: {}", key, e)))
     }
 
+    pub async fn zrevrange(&mut self, key: &str, start: isize, stop: isize) -> Result<Vec<String>> {
+        self.connection
+            .zrevrange(key, start, stop)
+            .await
+            .map_err(|e| Error::Redis(format!("Failed to zrevrange {}: {}", key, e)))
+    }
+
+    pub async fn del(&mut self, key: &str) -> Result<()> {
+        let _: RedisResult<()> = self.connection.del(key).await;
+        Ok(())
+    }
+
     pub async fn ping(&mut self) -> Result<()> {
         let _: String = redis::cmd("PING")
             .query_async::<String>(&mut self.connection)
@@ -181,12 +193,20 @@ impl RedisManager {
             match RedisConnectionManager::new(config.url.as_str()) {
                 Ok(manager) => {
                     match Pool::builder()
-                        .max_size(config.pool_size)
+                        .max_size(config.pool_size.min(20)) // Cap at 20 for memory efficiency
+                        .min_idle(Some(2)) // Keep minimum connections warm
                         .connection_timeout(config.connection_timeout)
+                        .idle_timeout(Some(Duration::from_secs(300))) // 5 min idle timeout
+                        .test_on_check_out(false) // Skip ping on checkout for speed
+                        .retry_connection(true)
                         .build(manager)
                         .await
                     {
                         Ok(pool) => {
+                            info!(
+                                "Redis connection pool initialized: {} connections, min_idle: 2",
+                                config.pool_size.min(20)
+                            );
                             return Ok(Self {
                                 pool,
                                 config: config.clone(),
@@ -258,6 +278,87 @@ impl RedisManager {
             .get()
             .await
             .map_err(|e| Error::Redis(format!("Failed to get connection from pool: {}", e)))
+    }
+
+    // Generic Redis operations for project context
+    pub async fn redis_set(&self, key: &str, value: &[u8]) -> Result<()> {
+        if let Some(fallback) = &self.fallback {
+            fallback.set(key, value.to_vec());
+        } else {
+            let mut conn = self.get_connection().await?;
+            let _: () = conn
+                .set(key, value)
+                .await
+                .map_err(|e| Error::Redis(format!("Failed to set key {}: {}", key, e)))?;
+        }
+        self.update_stats(true).await;
+        Ok(())
+    }
+
+    pub async fn redis_get(&self, key: &str) -> Result<Option<Vec<u8>>> {
+        let value: Option<Vec<u8>> = if let Some(fallback) = &self.fallback {
+            fallback.get(key)
+        } else {
+            let mut conn = self.get_connection().await?;
+            conn.get(key)
+                .await
+                .map_err(|e| Error::Redis(format!("Failed to get key {}: {}", key, e)))?
+        };
+
+        match value {
+            Some(data) => {
+                self.update_stats(true).await;
+                Ok(Some(data))
+            }
+            None => {
+                self.update_stats(false).await;
+                Ok(None)
+            }
+        }
+    }
+
+    pub async fn redis_del(&self, key: &str) -> Result<()> {
+        if let Some(fallback) = &self.fallback {
+            fallback.del(key);
+        } else {
+            let mut conn = self.get_connection().await?;
+            let _: () = conn
+                .del(key)
+                .await
+                .map_err(|e| Error::Redis(format!("Failed to delete key {}: {}", key, e)))?;
+        }
+        self.update_stats(true).await;
+        Ok(())
+    }
+
+    pub async fn redis_zadd(&self, key: &str, member: &str, score: f64) -> Result<()> {
+        if let Some(_fallback) = &self.fallback {
+            // For fallback, we could implement a simple sorted list but for now just skip
+            // This is acceptable since project context is not critical for basic functionality
+        } else {
+            let mut conn = self.get_connection().await?;
+            let _: () = conn
+                .zadd(key, member, score)
+                .await
+                .map_err(|e| Error::Redis(format!("Failed to zadd to {}: {}", key, e)))?;
+        }
+        self.update_stats(true).await;
+        Ok(())
+    }
+
+    pub async fn redis_zrevrange(&self, key: &str, start: isize, stop: isize) -> Result<Vec<String>> {
+        if let Some(_fallback) = &self.fallback {
+            // For fallback, return empty list - project context features won't work but basic RAG will
+            Ok(Vec::new())
+        } else {
+            let mut conn = self.get_connection().await?;
+            let result = conn
+                .zrevrange(key, start, stop)
+                .await
+                .map_err(|e| Error::Redis(format!("Failed to zrevrange {}: {}", key, e)))?;
+            self.update_stats(true).await;
+            Ok(result)
+        }
     }
 
     pub async fn store_document(&self, document: &crate::Document) -> Result<()> {

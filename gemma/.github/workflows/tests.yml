@@ -1,0 +1,56 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  unit-and-functional:
+    runs-on: ubuntu-latest
+    env:
+      CTEST_OUTPUT_ON_FAILURE: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+      - name: Configure (Tests)
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=RelWithSymbols
+          -DGEMMA_ENABLE_SYCL=OFF
+          -DGEMMA_ENABLE_AUTO_BACKENDS=OFF
+          -DGEMMA_PREFER_SYSTEM_DEPS=ON
+          -DGEMMA_REQUIRE_HWY_CONTRIB=OFF
+          -DGEMMA_ENABLE_ENHANCED_TESTS=ON
+          -DGEMMA_ENABLE_TESTS=ON
+      - name: Build
+        run: cmake --build build --config RelWithSymbols -- -k 0
+      - name: Run CTest (core)
+        run: ctest --test-dir build --output-on-failure --timeout 600
+
+  # Backend smoke tests (matrix)
+  backend-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [cuda, vulkan]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+      - name: Configure (${{ matrix.backend }})
+        run: >-
+          cmake -S . -B build-${{ matrix.backend }}
+          -DCMAKE_BUILD_TYPE=RelWithSymbols
+          -DGEMMA_ENABLE_AUTO_BACKENDS=OFF
+          -DGEMMA_ENABLE_CUDA=$([[ "${{ matrix.backend }}" == "cuda" ]] && echo ON || echo OFF)
+          -DGEMMA_ENABLE_VULKAN=$([[ "${{ matrix.backend }}" == "vulkan" ]] && echo ON || echo OFF)
+      - name: Build (${{ matrix.backend }})
+        run: cmake --build build-${{ matrix.backend }} --config RelWithSymbols -- -k 0
+      - name: List backend targets
+        run: cmake --build build-${{ matrix.backend }} --target help | head -n 200 || true

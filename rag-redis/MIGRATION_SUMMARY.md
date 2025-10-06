@@ -1,7 +1,19 @@
-# RAG Redis MCP Migration Summary
+# RAG Redis MCP Migration Summary (ARCHIVED)
 
-## Overview
-Successfully updated MCP server configurations to work with the new RAG-Redis location at `C:\codedev\llm\rag-redis\`.
+## ⚠️ DEPRECATED DOCUMENTATION ⚠️
+
+**This document describes a migration to a Python MCP bridge that has since been deprecated and archived.**
+
+- **Archive Date**: September 21, 2024
+- **Archive Location**: `.archive/python-mcp-bridge/`
+- **Replacement**: Native Rust MCP Server (`rag-redis-system/mcp-server/`)
+
+**For current implementation, see `CLAUDE.md`**
+
+---
+
+## Historical Overview
+This document recorded the migration to a Python MCP bridge that was later superseded by a native Rust implementation.
 
 ## Changes Made
 

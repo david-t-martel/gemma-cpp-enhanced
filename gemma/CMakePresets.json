@@ -19,6 +19,26 @@
             }
         },
         {
+            "name": "oneapi-ninja-base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-oneapi/${presetName}",
+            "cacheVariables": {
+                "CMAKE_CXX_STANDARD": "20",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "GEMMA_ENABLE_PCH": "ON",
+                "GEMMA_BUILD_BACKENDS": "ON",
+                "GEMMA_BUILD_SYCL_BACKEND": "ON",
+                "GEMMA_ENABLE_SYCL": "ON",
+                "GEMMA_FORCE_INTEL_COMPILER_FOR_SYCL": "ON",
+                "GEMMA_REQUIRE_AVX2": "ON",
+                "GEMMA_ENABLE_UNITY_BUILDS": "ON"
+            },
+            "environment": {
+                "ONEAPI_HINT": "If oneAPI is not already in your PATH run scripts/build_oneapi_ninja.ps1 or open an Intel oneAPI Developer Command Prompt first"
+            }
+        },
+        {
             "name": "linux-base",
             "hidden": true,
             "generator": "Unix Makefiles",
@@ -35,6 +55,23 @@
                     "lhs": "${hostSystemName}",
                     "rhs": "Windows"
                 }
+            }
+        },
+        {
+            "name": "oneapi-ninja-debug",
+            "displayName": "oneAPI SYCL Debug (Ninja)",
+            "inherits": "oneapi-ninja-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "oneapi-ninja-release",
+            "displayName": "oneAPI SYCL Release (Ninja)",
+            "inherits": "oneapi-ninja-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "GEMMA_ENABLE_LTO": "ON"
             }
         },
         {
@@ -146,6 +183,16 @@
             "jobs": 0
         },
         {
+            "name": "oneapi-ninja-debug",
+            "configurePreset": "oneapi-ninja-debug",
+            "jobs": 0
+        },
+        {
+            "name": "oneapi-ninja-release",
+            "configurePreset": "oneapi-ninja-release",
+            "jobs": 0
+        },
+        {
             "name": "windows-debug",
             "configurePreset": "windows-debug",
             "configuration": "Debug",
@@ -196,6 +243,16 @@
             "configurePreset": "windows-debug",
             "output": {
                 "outputOnFailure": true
+            }
+        },
+        {
+            "name": "oneapi-ninja-tests",
+            "configurePreset": "oneapi-ninja-release",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "ignore"
             }
         },
         {

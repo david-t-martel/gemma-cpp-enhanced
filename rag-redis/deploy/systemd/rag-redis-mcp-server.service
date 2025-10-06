@@ -1,0 +1,70 @@
+[Unit]
+Description=RAG-Redis MCP Server
+Documentation=https://github.com/david-t-martel/llm-stats
+After=network.target redis.service
+Wants=redis.service
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=rag-redis
+Group=rag-redis
+WorkingDirectory=/var/lib/rag-redis
+
+# Main service command
+ExecStart=/opt/rag-redis/bin/mcp-server
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Environment configuration
+EnvironmentFile=/etc/rag-redis/.env
+Environment=RUST_LOG=info
+Environment=RUST_BACKTRACE=1
+
+# Restart configuration
+Restart=always
+RestartSec=10
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/rag-redis /var/log/rag-redis
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallFilter=@system-service
+SystemCallFilter=~@debug @mount @cpu-emulation @obsolete
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+MemoryMax=4G
+CPUQuota=400%
+
+# Process settings
+OOMScoreAdjust=100
+IOSchedulingClass=2
+IOSchedulingPriority=4
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rag-redis-mcp-server
+SyslogFacility=daemon
+
+# Health check
+ExecStartPost=/bin/sleep 10
+ExecStartPost=/opt/rag-redis/scripts/health-check.sh --timeout 30
+
+[Install]
+WantedBy=multi-user.target

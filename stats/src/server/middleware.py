@@ -608,13 +608,39 @@ def add_cors_middleware(app: FastAPI, settings: Settings) -> None:
         app: FastAPI application
         settings: Application settings
     """
-    # TODO: SECURITY CRITICAL - Permissive CORS configuration. allow_headers=["*"] is too permissive. Specify exact headers needed. allow_credentials=True with origins is dangerous if not properly validated
+    # SECURITY: Specific headers allowed for CORS requests
+    allowed_headers = [
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "X-API-Key",
+        "X-CSRF-Token",
+        "Cache-Control",
+        "Pragma",
+        "Expires",
+    ]
+
+    # In production, validate origins more strictly
+    if settings.is_production():
+        # Ensure origins are validated - no wildcards in production
+        validated_origins = [
+            origin for origin in settings.security.allowed_origins
+            if origin != "*" and origin.startswith(("https://", "http://localhost"))
+        ]
+        if not validated_origins:
+            logger.warning("No valid origins configured for CORS in production")
+            validated_origins = ["https://localhost:8000"]  # Fallback to secure default
+    else:
+        validated_origins = settings.security.allowed_origins
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.security.allowed_origins,
-        allow_credentials=True,
+        allow_origins=validated_origins,
+        allow_credentials=True if "*" not in validated_origins else False,  # Disable credentials with wildcard origins
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
+        allow_headers=allowed_headers,
         expose_headers=["X-Process-Time", "X-RateLimit-*"],
     )
 

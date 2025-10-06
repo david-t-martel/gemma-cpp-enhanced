@@ -1,14 +1,24 @@
 # Session Management Library for Gemma.cpp
 cmake_minimum_required(VERSION 3.16)
 
-# Session management library
+# Session management library (monolithic initial version - slated for refactor per SESSION_REFACTORING_PLAN)
 add_library(gemma_session
     Session.cpp
     Session.h
+    session_serialization.cpp
+    session_serialization.h
+    conversation_types.h
+    session_json.cpp
+    i_session_storage.h
+    i_session_cache.h
     SessionStorage.cpp
     SessionStorage.h
     SessionManager.cpp
     SessionManager.h
+    sqlite_statement.cpp
+    sqlite_statement.h
+    lru_cache.cpp
+    lru_cache.h
 )
 
 # Set target properties
@@ -26,28 +36,49 @@ target_include_directories(gemma_session
         ${CMAKE_CURRENT_SOURCE_DIR}/../..
 )
 
-# Find required dependencies
-find_package(PkgConfig REQUIRED)
+# Dependency resolution (with vendored fallbacks)
+find_package(PkgConfig QUIET)
 
-# Find SQLite3
-find_package(SQLite3 REQUIRED)
+# --- SQLite3 ---
+find_package(SQLite3 QUIET)
 if(NOT SQLite3_FOUND)
-    # Fallback to pkg-config
-    pkg_check_modules(SQLite3 REQUIRED sqlite3)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(SQLite3 QUIET sqlite3)
+    endif()
+endif()
+if(NOT SQLite3_FOUND)
+    set(_VENDORED_SQLITE_DIR "${PROJECT_SOURCE_DIR}/third_party/sqlite")
+    if(EXISTS "${_VENDORED_SQLITE_DIR}/sqlite3.c")
+        message(STATUS "Using vendored sqlite3 from third_party/sqlite")
+        add_library(sqlite3_vendor STATIC "${_VENDORED_SQLITE_DIR}/sqlite3.c")
+        target_include_directories(sqlite3_vendor PUBLIC "${_VENDORED_SQLITE_DIR}")
+        # Normalize warnings for MSVC vs others
+        if(MSVC)
+            target_compile_definitions(sqlite3_vendor PRIVATE _CRT_SECURE_NO_WARNINGS)
+            target_compile_options(sqlite3_vendor PRIVATE /W3)
+        else()
+            target_compile_options(sqlite3_vendor PRIVATE -w)
+        endif()
+        add_library(SQLite::SQLite3 ALIAS sqlite3_vendor)
+        set(SQLite3_FOUND ON)
+    else()
+        message(FATAL_ERROR "SQLite3 not found and vendored source missing (expected sqlite3.c under third_party/sqlite)")
+    endif()
 endif()
 
-# Find nlohmann/json
-find_package(nlohmann_json REQUIRED)
+# --- nlohmann_json ---
+find_package(nlohmann_json QUIET)
 if(NOT nlohmann_json_FOUND)
-    # Try to find it via FetchContent if not found
-    include(FetchContent)
-    FetchContent_Declare(
-        nlohmann_json
-        GIT_REPOSITORY https://github.com/nlohmann/json.git
-        GIT_TAG v3.11.3
-        GIT_SHALLOW TRUE
-    )
-    FetchContent_MakeAvailable(nlohmann_json)
+    set(_VENDORED_JSON_DIR "${PROJECT_SOURCE_DIR}/third_party/nlohmann_json")
+    if(EXISTS "${_VENDORED_JSON_DIR}/single_include/nlohmann/json.hpp")
+        message(STATUS "Using vendored nlohmann_json from third_party/nlohmann_json")
+        add_library(nlohmann_json_vendor INTERFACE)
+        target_include_directories(nlohmann_json_vendor INTERFACE "${_VENDORED_JSON_DIR}/single_include")
+        add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json_vendor)
+        set(nlohmann_json_FOUND ON)
+    else()
+        message(FATAL_ERROR "nlohmann_json not found and vendored single_include missing (expected single_include/nlohmann/json.hpp)")
+    endif()
 endif()
 
 # Link libraries
@@ -65,6 +96,7 @@ if(MSVC)
         /W4 
         /permissive- 
         /Zc:__cplusplus
+        /WX
     )
     # Enable parallel compilation
     target_compile_options(gemma_session PRIVATE /MP)
@@ -74,6 +106,7 @@ else()
         -Wextra 
         -Wpedantic
         -Wno-unused-parameter
+        -Werror
     )
     
     # Enable optimizations for Release builds
@@ -95,12 +128,15 @@ target_link_libraries(gemma_session PRIVATE Threads::Threads)
 
 # Optional: Build tests if testing is enabled
 if(BUILD_TESTING OR GEMMA_BUILD_TESTS)
-    add_subdirectory(tests)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/CMakeLists.txt")
+        add_subdirectory(tests)
+    else()
+        message(STATUS "Session tests directory not present; skipping session test targets")
+    endif()
 endif()
 
-# Build benchmark executable if requested
-option(GEMMA_BUILD_BENCHMARKS "Build performance benchmarks" OFF)
-if(GEMMA_BUILD_BENCHMARKS)
+# Build benchmark executable if root requested
+if(GEMMA_BUILD_SESSION_BENCH)
     add_executable(session_benchmark benchmark_session.cpp)
     target_link_libraries(session_benchmark
         PRIVATE
@@ -123,6 +159,10 @@ if(GEMMA_INSTALL_TARGETS)
     
     install(FILES
         Session.h
+        conversation_types.h
+        session_serialization.h
+        i_session_storage.h
+        i_session_cache.h
         SessionStorage.h
         SessionManager.h
         DESTINATION include/gemma/session

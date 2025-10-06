@@ -1,0 +1,104 @@
+# MCP Gemma Server Configuration
+# This file configures the MCP server for gemma.cpp integration
+
+# Server settings
+server:
+  name: "gemma-mcp"
+  version: "1.0.0"
+  debug: false
+  log_file: null  # Log to console if null
+
+# Model configuration
+model:
+  # Path to the Gemma model file (required)
+  model_path: "/c/codedev/llm/.models/gemma2-2b-it-sfp.sbs"
+
+  # Path to tokenizer file (optional for single-file models)
+  tokenizer_path: "/c/codedev/llm/.models/tokenizer.spm"
+
+  # Path to the gemma executable
+  gemma_executable: "/mnt/c/codedev/llm/gemma/gemma.cpp/build_wsl/gemma"
+
+  # Generation parameters
+  max_tokens: 2048
+  temperature: 0.7
+  max_context: 8192
+
+# Transport configurations
+transports:
+  # Stdio transport (for direct CLI integration)
+  stdio:
+    enabled: true
+
+  # HTTP transport (for REST API access)
+  http:
+    enabled: true
+    host: "localhost"
+    port: 8080
+    cors_enabled: true
+
+  # WebSocket transport (for real-time streaming)
+  websocket:
+    enabled: true
+    host: "localhost"
+    port: 8081
+    ping_interval: 30.0
+    ping_timeout: 10.0
+
+# Redis configuration for memory management
+redis:
+  enabled: true
+  host: "localhost"
+  port: 6379
+  db: 0
+  # Optional password
+  password: null
+  # Memory settings
+  memory_prefix: "gemma_mcp"
+  max_memory_entries: 10000
+
+# Performance settings
+performance:
+  # Maximum concurrent requests
+  max_concurrent_requests: 10
+
+  # Request timeout in seconds
+  request_timeout: 30.0
+
+  # Enable metrics collection
+  enable_metrics: true
+
+  # Metrics retention period in seconds
+  metrics_retention: 3600
+
+# Security settings
+security:
+  # Enable request validation
+  validate_requests: true
+
+  # Rate limiting (requests per minute)
+  rate_limit: 100
+
+  # Allowed origins for CORS (if empty, allows all)
+  allowed_origins: []
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  max_file_size: "10MB"
+  backup_count: 5
+
+# Integration settings
+integration:
+  # Enable stats framework integration
+  stats_integration: true
+
+  # Enable RAG-Redis integration
+  rag_integration: true
+
+  # Stats framework path
+  stats_path: "../stats"
+
+  # RAG-Redis system path
+  rag_path: "../rag-redis"

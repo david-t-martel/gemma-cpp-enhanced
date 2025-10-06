@@ -179,6 +179,36 @@ pub struct InitializeResponse {
     pub instructions: Option<String>,
 }
 
+/// Resource read request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceReadRequest {
+    pub uri: String,
+}
+
+/// Resource read response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceReadResponse {
+    pub contents: Vec<ResourceContent>,
+}
+
+/// Resource content
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceContent {
+    pub uri: String,
+    #[serde(rename = "mimeType", skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blob: Option<String>,
+}
+
+/// Logging set level request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoggingSetLevelRequest {
+    pub level: LogLevel,
+}
+
 /// Logging level enum
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

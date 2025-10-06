@@ -1,0 +1,37 @@
+# MCP Gemma Server Requirements
+
+# Core MCP Protocol
+# mcp  # Uncomment when official MCP package is available
+
+# Web frameworks and networking
+aiohttp>=3.8.0
+aiohttp-cors>=0.7.0
+websockets>=11.0.0
+
+# Data processing and storage
+redis>=4.5.0
+pyyaml>=6.0
+
+# Machine learning and text processing
+sentence-transformers>=2.2.0
+numpy>=1.21.0
+
+# Utilities
+python-dotenv>=1.0.0
+asyncio-throttle>=1.0.0
+
+# Development and testing (optional)
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+
+# Optional dependencies for enhanced features
+# Install with: pip install -r requirements.txt -r requirements-optional.txt
+
+# For production deployment
+gunicorn>=20.1.0  # For HTTP deployment
+uvloop>=0.17.0    # For better async performance (Unix only)
+
+# For monitoring and logging
+structlog>=22.0.0
+prometheus-client>=0.15.0

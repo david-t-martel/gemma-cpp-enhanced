@@ -218,6 +218,7 @@ pub struct IndexStats {
 }
 
 /// SIMD-optimized distance calculations
+#[derive(Debug)]
 pub struct SimdDistanceCalculator {
     dimension: usize,
 }
@@ -356,6 +357,7 @@ impl SimdDistanceCalculator {
 // This is a simplified implementation for now
 
 /// Vector index implementation (simplified without HNSW for compatibility)
+#[derive(Debug)]
 pub struct VectorIndex {
     /// Vector storage with metadata
     vectors: DashMap<String, (Vec<f32>, VectorMetadata)>,
@@ -548,6 +550,7 @@ impl VectorIndex {
 
 /// Main vector store implementation
 #[derive(Clone)]
+#[derive(Debug)]
 pub struct VectorStore {
     /// Primary vector index
     index: Arc<VectorIndex>,

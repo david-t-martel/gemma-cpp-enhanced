@@ -3,12 +3,11 @@
 #include "Session.h"
 #include <string>
 #include <memory>
-#include <unordered_map>
 #include <mutex>
 #include <optional>
 #include <chrono>
-#include <list>
-#include <nlohmann/json.hpp>
+#include "i_session_storage.h"
+#include "i_session_cache.h"
 
 // Forward declare SQLite types to avoid including sqlite3.h in header
 struct sqlite3;
@@ -17,78 +16,7 @@ struct sqlite3_stmt;
 namespace gemma {
 namespace session {
 
-/**
- * @brief LRU (Least Recently Used) cache for in-memory session storage
- * 
- * This class provides efficient O(1) access and eviction for session caching.
- */
-class LRUCache {
-public:
-    /**
-     * @brief Construct a new LRUCache object
-     * 
-     * @param capacity Maximum number of items to cache
-     */
-    explicit LRUCache(size_t capacity);
-    
-    /**
-     * @brief Get a session from the cache
-     * 
-     * @param session_id Session identifier
-     * @return std::shared_ptr<Session> Session pointer or nullptr if not found
-     */
-    std::shared_ptr<Session> get(const std::string& session_id);
-    
-    /**
-     * @brief Put a session into the cache
-     * 
-     * @param session_id Session identifier
-     * @param session Session to cache
-     */
-    void put(const std::string& session_id, std::shared_ptr<Session> session);
-    
-    /**
-     * @brief Remove a session from the cache
-     * 
-     * @param session_id Session identifier
-     */
-    void remove(const std::string& session_id);
-    
-    /**
-     * @brief Clear all sessions from the cache
-     */
-    void clear();
-    
-    /**
-     * @brief Get the current number of cached sessions
-     * 
-     * @return size_t Number of cached sessions
-     */
-    size_t size() const;
-    
-    /**
-     * @brief Get the cache capacity
-     * 
-     * @return size_t Maximum cache capacity
-     */
-    size_t capacity() const;
-
-private:
-    struct CacheNode {
-        std::string session_id;
-        std::shared_ptr<Session> session;
-    };
-    
-    size_t capacity_;
-    std::list<CacheNode> cache_list_;
-    std::unordered_map<std::string, std::list<CacheNode>::iterator> cache_map_;
-    mutable std::mutex mutex_;
-    
-    /**
-     * @brief Evict the least recently used item
-     */
-    void evict();
-};
+class LRUCache; // forward declare concrete cache
 
 /**
  * @brief SessionStorage class providing persistent storage for sessions
@@ -97,7 +25,7 @@ private:
  * It provides in-memory caching with LRU eviction, JSON export/import capabilities,
  * and automatic cleanup of expired sessions.
  */
-class SessionStorage {
+class SessionStorage : public ISessionStorage {
 public:
     /**
      * @brief Storage configuration options
@@ -108,6 +36,7 @@ public:
         std::chrono::hours session_ttl{24};            // Session time-to-live
         bool enable_auto_cleanup = true;               // Enable automatic cleanup
         std::chrono::minutes cleanup_interval{60};     // Cleanup interval
+        Config() = default;
     };
     
     /**
@@ -127,15 +56,15 @@ public:
     SessionStorage& operator=(const SessionStorage&) = delete;
     
     // Enable move constructor and assignment
-    SessionStorage(SessionStorage&&) = default;
-    SessionStorage& operator=(SessionStorage&&) = default;
+    SessionStorage(SessionStorage&&) = delete;
+    SessionStorage& operator=(SessionStorage&&) = delete;
     
     /**
      * @brief Initialize the storage backend
      * 
      * @return bool True if initialization successful
      */
-    bool initialize();
+    bool initialize() override;
     
     /**
      * @brief Save a session to persistent storage
@@ -143,7 +72,7 @@ public:
      * @param session Session to save
      * @return bool True if save successful
      */
-    bool save_session(std::shared_ptr<Session> session);
+    bool save_session(std::shared_ptr<Session> session) override;
     
     /**
      * @brief Load a session from storage
@@ -151,7 +80,7 @@ public:
      * @param session_id Session identifier
      * @return std::shared_ptr<Session> Session pointer or nullptr if not found
      */
-    std::shared_ptr<Session> load_session(const std::string& session_id);
+    std::shared_ptr<Session> load_session(const std::string& session_id) override;
     
     /**
      * @brief Delete a session from storage
@@ -159,7 +88,7 @@ public:
      * @param session_id Session identifier
      * @return bool True if deletion successful
      */
-    bool delete_session(const std::string& session_id);
+    bool delete_session(const std::string& session_id) override;
     
     /**
      * @brief Check if a session exists in storage
@@ -167,14 +96,14 @@ public:
      * @param session_id Session identifier
      * @return bool True if session exists
      */
-    bool session_exists(const std::string& session_id);
+    bool session_exists(const std::string& session_id) override;
     
     /**
      * @brief Get metadata for all sessions
      * 
      * @return std::vector<nlohmann::json> List of session metadata
      */
-    std::vector<nlohmann::json> list_sessions();
+    std::vector<std::string> list_sessions() override;
     
     /**
      * @brief Get metadata for sessions with optional filtering
@@ -185,9 +114,9 @@ public:
      * @param ascending Sort direction
      * @return std::vector<nlohmann::json> List of session metadata
      */
-    std::vector<nlohmann::json> list_sessions(size_t limit, size_t offset, 
-                                             const std::string& sort_by = "last_activity", 
-                                             bool ascending = false);
+    std::vector<std::string> list_sessions(size_t limit, size_t offset,
+                                           const std::string& sort_by = "last_activity",
+                                           bool ascending = false) override;
     
     /**
      * @brief Export all sessions to JSON
@@ -195,7 +124,7 @@ public:
      * @param file_path Output file path
      * @return bool True if export successful
      */
-    bool export_to_json(const std::string& file_path);
+    bool export_to_json(const std::string& file_path) override;
     
     /**
      * @brief Import sessions from JSON
@@ -204,26 +133,26 @@ public:
      * @param overwrite_existing Whether to overwrite existing sessions
      * @return bool True if import successful
      */
-    bool import_from_json(const std::string& file_path, bool overwrite_existing = false);
+    bool import_from_json(const std::string& file_path, bool overwrite_existing = false) override;
     
     /**
      * @brief Clean up expired sessions
      * 
      * @return size_t Number of sessions cleaned up
      */
-    size_t cleanup_expired_sessions();
+    size_t cleanup_expired_sessions() override;
     
     /**
      * @brief Get storage statistics
      * 
      * @return nlohmann::json Storage statistics
      */
-    nlohmann::json get_statistics();
+    std::string get_statistics() override;
     
     /**
      * @brief Close the storage backend
      */
-    void close();
+    void close() override;
     
     /**
      * @brief Get the current configuration
@@ -235,7 +164,7 @@ public:
 private:
     Config config_;
     sqlite3* db_;
-    std::unique_ptr<LRUCache> cache_;
+    std::unique_ptr<ISessionCache> cache_;
     mutable std::mutex db_mutex_;
     bool initialized_;
     std::chrono::system_clock::time_point last_cleanup_;
@@ -265,7 +194,7 @@ private:
      * @param stmt SQLite statement
      * @return nlohmann::json Session metadata
      */
-    nlohmann::json sqlite_row_to_metadata(sqlite3_stmt* stmt);
+    std::string sqlite_row_to_metadata(sqlite3_stmt* stmt);
     
     /**
      * @brief Get the current timestamp as SQLite-compatible integer

@@ -83,6 +83,11 @@ endfunction()
 
 # Main inference benchmarks
 add_gemma_benchmark(benchmark_inference benchmark_inference.cpp)
+# Stress GTest-based performance regression (moved from integration)
+add_gemma_perf_test(test_stress_concurrent_generations test_stress_concurrent_generations.cpp)
+set_tests_properties(test_stress_concurrent_generations PROPERTIES
+    LABELS "performance;regression;stress"
+    TIMEOUT 180)
 
 # Set specific properties for inference benchmarks
 set_tests_properties(benchmark_inference PROPERTIES

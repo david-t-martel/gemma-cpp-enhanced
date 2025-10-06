@@ -26,6 +26,7 @@
 #include "compression/types.h"
 #include "util/basics.h"
 #include "hwy/base.h"
+// (Removed custom scalar fallback header; relying on Highway's native scalar implementation)
 
 #endif  // THIRD_PARTY_GEMMA_CPP_COMPRESSION_NUQ_INL_H_
 

@@ -1,0 +1,163 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: rag-redis-backend
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+      - ./deploy/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    environment:
+      - REDIS_SAVE_INTERVAL=${REDIS_SAVE_INTERVAL:-900 1}
+      - REDIS_MAXMEMORY=${REDIS_MAXMEMORY:-2gb}
+      - REDIS_MAXMEMORY_POLICY=${REDIS_MAXMEMORY_POLICY:-allkeys-lru}
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+          cpus: '2.0'
+        reservations:
+          memory: 1g
+          cpus: '0.5'
+
+  rag-mcp-server:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+      target: production
+      args:
+        RUST_VERSION: 1.75.0
+        BINARY_NAME: mcp-server
+    container_name: rag-mcp-server
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "${MCP_SERVER_PORT:-8080}:8080"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=${RUST_LOG:-info}
+      - MCP_SERVER_HOST=0.0.0.0
+      - MCP_SERVER_PORT=8080
+      - RAG_DATA_DIR=/app/data
+      - EMBEDDING_CACHE_DIR=/app/cache
+      - LOG_DIR=/app/logs
+      - VECTOR_BATCH_SIZE=${VECTOR_BATCH_SIZE:-100}
+      - MEMORY_CONSOLIDATION_INTERVAL=${MEMORY_CONSOLIDATION_INTERVAL:-300}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      # API Keys (optional - for research integration)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - rag_data:/app/data
+      - rag_cache:/app/cache
+      - rag_logs:/app/logs
+      - ./models:/app/models:ro
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "/app/bin/health-check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '4.0'
+        reservations:
+          memory: 2g
+          cpus: '1.0'
+
+  # Optional: Prometheus monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rag-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - rag-network
+    profiles:
+      - monitoring
+
+  # Optional: Grafana dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rag-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - rag-network
+    profiles:
+      - monitoring
+
+  # Optional: Redis Insight for Redis management
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: rag-redis-insight
+    restart: unless-stopped
+    ports:
+      - "${REDIS_INSIGHT_PORT:-8001}:8001"
+    volumes:
+      - redis_insight_data:/db
+    networks:
+      - rag-network
+    profiles:
+      - tools
+
+volumes:
+  redis_data:
+    driver: local
+  rag_data:
+    driver: local
+  rag_cache:
+    driver: local
+  rag_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  redis_insight_data:
+    driver: local
+
+networks:
+  rag-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

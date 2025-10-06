@@ -26,6 +26,7 @@
 #endif
 
 #include "compression/compress-inl.h"
+#include "ops/highway_scalar_fallback.h"
 
 HWY_BEFORE_NAMESPACE();
 namespace gcpp {

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Microsoft/vcpkg/master/scripts/vcpkg.schema.json",
+  "name": "gemma-cpp",
+  "version": "1.0.0",
+  "description": "Lightweight C++ inference engine for Google's Gemma foundation models",
+  "dependencies": [
+    "highway",
+    "nlohmann-json",
+    "benchmark",
+    "gtest",
+    "sentencepiece",
+    "sqlite3"
+  ],
+  "features": {
+    "cuda": {
+      "description": "NVIDIA CUDA backend support",
+      "dependencies": [
+        {
+          "name": "cuda",
+          "platform": "windows & !arm"
+        }
+      ]
+    },
+    "vulkan": {
+      "description": "Vulkan compute backend support",
+      "dependencies": [
+        {
+          "name": "vulkan",
+          "platform": "!osx"
+        }
+      ]
+    }
+  }
+}

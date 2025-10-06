@@ -1,24 +1,17 @@
-# Gemma CLI Wrapper - Python Dependencies
-# Required for Windows-compatible gemma CLI wrapper
+# Core dependencies for enhanced Gemma CLI
+colorama>=0.4.6
 
-# Optional but recommended for colored output
-colorama>=0.4.4
+# RAG System dependencies (optional but recommended)
+redis>=5.0.0
+redis[hiredis]>=5.0.0
+numpy>=1.24.0
+sentence-transformers>=2.2.0
+tiktoken>=0.5.0
 
-# Standard library modules used (included with Python):
-# - asyncio
-# - json
-# - os
-# - pathlib
-# - subprocess
-# - sys
-# - threading
-# - time
-# - datetime
-# - argparse
-# - signal
-# - re
+# Additional ML dependencies
+torch>=2.0.0
+transformers>=4.30.0
 
-# For development/testing:
-# pytest>=7.0.0
-# black>=22.0.0
-# flake8>=4.0.0
+# Development and testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0

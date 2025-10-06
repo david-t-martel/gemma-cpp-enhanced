@@ -28,6 +28,7 @@
 #include "compression/distortion.h"
 #include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
+// (Removed custom scalar fallback header; relying on Highway's native scalar implementation)
 #include "hwy/contrib/thread_pool/thread_pool.h"
 #include "hwy/timer.h"
 
@@ -46,6 +47,7 @@
 #endif
 
 #include "hwy/highway.h"
+#include "ops/highway_scalar_fallback.h"
 // After highway.h
 #include "compression/nuq-inl.h"
 #include "compression/sfp-inl.h"
@@ -196,6 +198,79 @@ struct CompressTraits<float> {
   }
 };
 
+#if HWY_TARGET == HWY_SCALAR
+// Scalar-safe BF16 compression/decompression: avoid multi-lane Repartition
+// (which produces a 2-lane bf16 descriptor unsupported by scalar backend)
+// and any OrderedDemote2To / Promote* calls. All operations are per-element.
+template <>
+struct CompressTraits<BF16> {
+  using Packed = BF16;
+
+  template <class DF, HWY_IF_F32_D(DF)>
+  static HWY_INLINE void Compress(DF df, const float* HWY_RESTRICT raw,
+                                  size_t num, CompressPerThread& tls,
+                                  const PackedSpan<Packed>& packed,
+                                  const size_t packed_ofs) {
+    packed.BoundsCheck(packed_ofs, num);
+    for (size_t i = 0; i < num; ++i) {
+      packed.ptr[packed_ofs + i] = hwy::ConvertScalarTo<BF16>(raw[i]);
+    }
+    if (COMPRESS_STATS) {
+      DistortionStats stats;
+      for (size_t i = 0; i < num; ++i) {
+        stats.Notify(raw[i], hwy::F32FromBF16(packed.ptr[packed_ofs + i]));
+      }
+      tls.stats.Notify(stats);
+    }
+  }
+
+  template <class DBF16, HWY_IF_BF16_D(DBF16)>
+  static HWY_INLINE void Load2(DBF16 dbf16, const PackedSpan<const Packed>& packed,
+                               size_t packed_ofs, hn::Vec<DBF16>& raw0,
+                               hn::Vec<DBF16>& raw1) {
+    packed.BoundsCheck(packed_ofs, 2);
+    raw0 = hn::LoadU(dbf16, packed.ptr + packed_ofs);
+    raw1 = hn::LoadU(dbf16, packed.ptr + packed_ofs + 1);
+  }
+
+  // Provided so Compress2 (which calls Traits::Store2) links in scalar mode.
+  template <class DF, HWY_IF_F32_D(DF), class VF = hn::Vec<DF>>
+  static HWY_INLINE void Store2(DF df, VF raw0, VF raw1,
+                                const PackedSpan<Packed>& packed,
+                                const size_t packed_ofs) {
+    // Lanes(df) == 1 in HWY_SCALAR; extract lane and convert.
+    const float f0 = hn::GetLane(raw0);
+    const float f1 = hn::GetLane(raw1);
+    packed.ptr[packed_ofs] = hwy::ConvertScalarTo<BF16>(f0);
+    packed.ptr[packed_ofs + 1] = hwy::ConvertScalarTo<BF16>(f1);
+  }
+
+  template <class DF, HWY_IF_F32_D(DF)>
+  static HWY_INLINE void Load2(DF df, const PackedSpan<const Packed>& packed,
+                               size_t packed_ofs, hn::Vec<DF>& raw0,
+                               hn::Vec<DF>& raw1) {
+    packed.BoundsCheck(packed_ofs, 2);
+    const BF16* base = packed.ptr + packed_ofs;
+    raw0 = hn::Set(df, hwy::F32FromBF16(base[0]));
+    raw1 = hn::Set(df, hwy::F32FromBF16(base[1]));
+  }
+
+  template <class DBF16, HWY_IF_BF16_D(DBF16)>
+  static HWY_INLINE void DecompressAndZeroPad(DBF16 /*dbf*/, const PackedSpan<const Packed>& packed,
+                                              size_t packed_ofs, BF16* raw, size_t num) {
+    packed.BoundsCheck(packed_ofs, num);
+    // Direct copy then zero pad to 1 (noop) if needed.
+    for (size_t i = 0; i < num; ++i) raw[i] = packed.ptr[packed_ofs + i];
+  }
+
+  template <class DF, HWY_IF_F32_D(DF)>
+  static HWY_INLINE void DecompressAndZeroPad(DF /*df*/, const PackedSpan<const Packed>& packed,
+                                              size_t packed_ofs, float* raw, size_t num) {
+    packed.BoundsCheck(packed_ofs, num);
+    for (size_t i = 0; i < num; ++i) raw[i] = hwy::F32FromBF16(packed.ptr[packed_ofs + i]);
+  }
+};
+#else  // HWY_TARGET != HWY_SCALAR
 template <>
 struct CompressTraits<BF16> {
   using Packed = BF16;
@@ -373,8 +448,43 @@ struct CompressTraits<BF16> {
     }
   }
 };
+#endif  // HWY_TARGET == HWY_SCALAR
 
 // Switching floating point: 8-bit, 2..3 mantissa bits.
+#if HWY_TARGET == HWY_SCALAR
+// Scalar build: disable SfpStream compression (multi-lane scalar vector
+// emulation required by codec is not available). Provide stubs so code
+// specializing on CompressTraits<SfpStream> still compiles if never invoked.
+template <>
+struct CompressTraits<SfpStream> {
+  using Packed = SfpStream;
+
+  template <class DF, HWY_IF_F32_D(DF)>
+  static HWY_INLINE void Compress(DF, const float*, size_t, CompressPerThread&,
+                                  const PackedSpan<Packed>&, size_t) {
+    HWY_ABORT("SfpStream compression disabled in HWY_SCALAR build");
+  }
+
+  template <class D>
+  static HWY_INLINE void Load2(D d, const PackedSpan<const Packed>&, size_t,
+                               hn::Vec<D>& raw0, hn::Vec<D>& raw1) {
+    raw0 = hn::Zero(d);
+    raw1 = hn::Zero(d);
+  }
+
+  template <class D, typename Raw>
+  static HWY_INLINE void DecompressAndZeroPad(D, const PackedSpan<const Packed>&,
+                                              size_t, Raw* raw, size_t num) {
+    for (size_t i = 0; i < num; ++i) {
+      if constexpr (hwy::IsSame<Raw, BF16>()) {
+        raw[i] = hwy::ConvertScalarTo<BF16>(0.0f);
+      } else {
+        raw[i] = static_cast<Raw>(0);
+      }
+    }
+  }
+};
+#else  // !HWY_SCALAR
 template <>
 struct CompressTraits<SfpStream> {
   using Packed = SfpStream;
@@ -421,8 +531,40 @@ struct CompressTraits<SfpStream> {
     SfpCodec::DecompressAndZeroPad(d, packed, packed_ofs, raw, num);
   }
 };
+#endif  // HWY_TARGET == HWY_SCALAR
 
 // Nonuniform quantization, 4.5 bits per element, two separate streams.
+#if HWY_TARGET == HWY_SCALAR
+template <>
+struct CompressTraits<NuqStream> {
+  using Packed = NuqStream;
+
+  template <class DF, HWY_IF_F32_D(DF)>
+  static HWY_INLINE void Compress(DF, const float*, size_t, CompressPerThread&,
+                                  const PackedSpan<Packed>&, size_t) {
+    HWY_ABORT("NuqStream compression disabled in HWY_SCALAR build");
+  }
+
+  template <class D>
+  static HWY_INLINE void Load2(D d, const PackedSpan<const Packed>&, size_t,
+                               hn::Vec<D>& raw0, hn::Vec<D>& raw1) {
+    raw0 = hn::Zero(d);
+    raw1 = hn::Zero(d);
+  }
+
+  template <class D, typename Raw>
+  static HWY_INLINE void DecompressAndZeroPad(D, const PackedSpan<const Packed>&,
+                                              size_t, Raw* raw, size_t num) {
+    for (size_t i = 0; i < num; ++i) {
+      if constexpr (hwy::IsSame<Raw, BF16>()) {
+        raw[i] = hwy::ConvertScalarTo<BF16>(0.0f);
+      } else {
+        raw[i] = static_cast<Raw>(0);
+      }
+    }
+  }
+};
+#else  // !HWY_SCALAR
 template <>
 struct CompressTraits<NuqStream> {
   using Packed = NuqStream;
@@ -469,6 +611,7 @@ struct CompressTraits<NuqStream> {
     NuqCodec::DecompressAndZeroPad(d, packed, packed_ofs, raw, num);
   }
 };
+#endif  // HWY_TARGET == HWY_SCALAR
 
 // Compresses `num` elements of `raw` to `packed` starting at `packed_ofs`,
 // which is useful for compressing sub-regions of an array.

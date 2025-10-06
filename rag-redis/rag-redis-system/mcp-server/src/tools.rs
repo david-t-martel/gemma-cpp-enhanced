@@ -1,24 +1,41 @@
 use crate::protocol::*;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::collections::HashMap;
 
 /// Create all available MCP tools for the RAG-Redis system
 pub fn create_tools() -> Vec<Tool> {
     vec![
+        // Document management tools
         create_ingest_document_tool(),
         create_search_documents_tool(),
         create_research_query_tool(),
         create_list_documents_tool(),
         create_get_document_tool(),
         create_delete_document_tool(),
-        create_clear_memory_tool(),
-        create_get_memory_stats_tool(),
-        create_get_system_metrics_tool(),
-        create_health_check_tool(),
-        create_configure_system_tool(),
         create_batch_ingest_tool(),
         create_semantic_search_tool(),
         create_hybrid_search_tool(),
+        
+        // Memory management tools
+        create_store_memory_tool(),
+        create_recall_memory_tool(),
+        create_clear_memory_tool(),
+        create_get_memory_stats_tool(),
+        
+        // Project context management tools
+        create_save_project_context_tool(),
+        create_load_project_context_tool(),
+        create_quick_save_session_tool(),
+        create_quick_load_session_tool(),
+        create_diff_contexts_tool(),
+        create_list_project_snapshots_tool(),
+        create_get_project_statistics_tool(),
+        create_cleanup_old_snapshots_tool(),
+        
+        // System management tools
+        create_get_system_metrics_tool(),
+        create_health_check_tool(),
+        create_configure_system_tool(),
     ]
 }
 
@@ -248,6 +265,88 @@ fn create_delete_document_tool() -> Tool {
     }
 }
 
+fn create_store_memory_tool() -> Tool {
+    let mut properties = HashMap::new();
+
+    properties.insert("content".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "The content to store in memory".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("memory_type".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Type of memory: 'working', 'short_term', 'long_term', 'episodic', or 'semantic'".to_string(),
+        items: None,
+        default: Some(json!("short_term")),
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("importance".to_string(), PropertySchema {
+        property_type: "number".to_string(),
+        description: "Importance score (0.0-1.0) for memory prioritization".to_string(),
+        items: None,
+        default: Some(json!(0.5)),
+        minimum: Some(0),
+        maximum: Some(1),
+    });
+
+    Tool {
+        name: "store_memory".to_string(),
+        description: "Store content in the agent's memory system with specified type and importance".to_string(),
+        input_schema: ToolInputSchema {
+            schema_type: "object".to_string(),
+            properties,
+            required: vec!["content".to_string()],
+        },
+    }
+}
+
+fn create_recall_memory_tool() -> Tool {
+    let mut properties = HashMap::new();
+
+    properties.insert("query".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Query to search for relevant memories".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("memory_type".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Optional memory type filter: 'working', 'short_term', 'long_term', 'episodic', or 'semantic'".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("limit".to_string(), PropertySchema {
+        property_type: "integer".to_string(),
+        description: "Maximum number of memories to return".to_string(),
+        items: None,
+        default: Some(json!(10)),
+        minimum: Some(1),
+        maximum: Some(100),
+    });
+
+    Tool {
+        name: "recall_memory".to_string(),
+        description: "Recall relevant memories based on a query with optional type filtering".to_string(),
+        input_schema: ToolInputSchema {
+            schema_type: "object".to_string(),
+            properties,
+            required: vec!["query".to_string()],
+        },
+    }
+}
+
 fn create_clear_memory_tool() -> Tool {
     let mut properties = HashMap::new();
 
@@ -288,6 +387,270 @@ fn create_get_memory_stats_tool() -> Tool {
             schema_type: "object".to_string(),
             properties: HashMap::new(),
             required: vec![],
+        },
+    }
+}
+
+fn create_save_project_context_tool() -> Tool {
+    let mut properties = HashMap::new();
+
+    properties.insert("project_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Unique identifier for the project".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("project_root".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Root directory path of the project. If not provided, uses current directory".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("options".to_string(), PropertySchema {
+        property_type: "object".to_string(),
+        description: "Save options including what to capture (files, memories, vectors, config)".to_string(),
+        items: None,
+        default: Some(json!({
+            "include_files": true,
+            "include_memories": true,
+            "include_vectors": true,
+            "include_config": true,
+            "compress": true,
+            "deduplicate": true,
+            "snapshot_type": "Full"
+        })),
+        minimum: None,
+        maximum: None,
+    });
+
+    Tool {
+        name: "save_project_context".to_string(),
+        description: "Save complete project context including files, memories, vectors, and configuration".to_string(),
+        input_schema: ToolInputSchema {
+            schema_type: "object".to_string(),
+            properties,
+            required: vec!["project_id".to_string()],
+        },
+    }
+}
+
+fn create_load_project_context_tool() -> Tool {
+    let mut properties = HashMap::new();
+
+    properties.insert("project_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Unique identifier for the project".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("snapshot_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Optional specific snapshot ID to load. If not provided, loads latest snapshot".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    Tool {
+        name: "load_project_context".to_string(),
+        description: "Load complete project context from a previous snapshot".to_string(),
+        input_schema: ToolInputSchema {
+            schema_type: "object".to_string(),
+            properties,
+            required: vec!["project_id".to_string()],
+        },
+    }
+}
+
+fn create_quick_save_session_tool() -> Tool {
+    let mut properties = HashMap::new();
+
+    properties.insert("project_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Unique identifier for the project".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("description".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Description of the current session state".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    Tool {
+        name: "quick_save_session".to_string(),
+        description: "Quickly save current session state for easy restoration".to_string(),
+        input_schema: ToolInputSchema {
+            schema_type: "object".to_string(),
+            properties,
+            required: vec!["project_id".to_string(), "description".to_string()],
+        },
+    }
+}
+
+fn create_quick_load_session_tool() -> Tool {
+    let mut properties = HashMap::new();
+
+    properties.insert("project_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Unique identifier for the project".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("session_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Session snapshot ID to restore".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    Tool {
+        name: "quick_load_session".to_string(),
+        description: "Quickly restore a previously saved session state".to_string(),
+        input_schema: ToolInputSchema {
+            schema_type: "object".to_string(),
+            properties,
+            required: vec!["project_id".to_string(), "session_id".to_string()],
+        },
+    }
+}
+
+fn create_diff_contexts_tool() -> Tool {
+    let mut properties = HashMap::new();
+
+    properties.insert("project_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Unique identifier for the project".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("from_version".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Source version/snapshot to compare from".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("to_version".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Target version/snapshot to compare to".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    Tool {
+        name: "diff_contexts".to_string(),
+        description: "Generate a comprehensive diff between two project context snapshots".to_string(),
+        input_schema: ToolInputSchema {
+            schema_type: "object".to_string(),
+            properties,
+            required: vec!["project_id".to_string(), "from_version".to_string(), "to_version".to_string()],
+        },
+    }
+}
+
+fn create_list_project_snapshots_tool() -> Tool {
+    let mut properties = HashMap::new();
+
+    properties.insert("project_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Unique identifier for the project".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    properties.insert("limit".to_string(), PropertySchema {
+        property_type: "integer".to_string(),
+        description: "Maximum number of snapshots to return".to_string(),
+        items: None,
+        default: Some(json!(50)),
+        minimum: Some(1),
+        maximum: Some(1000),
+    });
+
+    Tool {
+        name: "list_project_snapshots".to_string(),
+        description: "List all available snapshots for a project with metadata".to_string(),
+        input_schema: ToolInputSchema {
+            schema_type: "object".to_string(),
+            properties,
+            required: vec!["project_id".to_string()],
+        },
+    }
+}
+
+fn create_get_project_statistics_tool() -> Tool {
+    let mut properties = HashMap::new();
+
+    properties.insert("project_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Unique identifier for the project".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    Tool {
+        name: "get_project_statistics".to_string(),
+        description: "Get comprehensive statistics and analytics for a project".to_string(),
+        input_schema: ToolInputSchema {
+            schema_type: "object".to_string(),
+            properties,
+            required: vec!["project_id".to_string()],
+        },
+    }
+}
+
+fn create_cleanup_old_snapshots_tool() -> Tool {
+    let mut properties = HashMap::new();
+
+    properties.insert("project_id".to_string(), PropertySchema {
+        property_type: "string".to_string(),
+        description: "Unique identifier for the project".to_string(),
+        items: None,
+        default: None,
+        minimum: None,
+        maximum: None,
+    });
+
+    Tool {
+        name: "cleanup_old_snapshots".to_string(),
+        description: "Remove old snapshots based on retention policy to free storage space".to_string(),
+        input_schema: ToolInputSchema {
+            schema_type: "object".to_string(),
+            properties,
+            required: vec!["project_id".to_string()],
         },
     }
 }

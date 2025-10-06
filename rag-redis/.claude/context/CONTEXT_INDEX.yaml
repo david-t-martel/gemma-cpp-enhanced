@@ -1,0 +1,132 @@
+# RAG-Redis Project Context Index
+# Quick lookup reference for project information
+
+project_info:
+  name: "RAG-Redis System"
+  type: "High-performance RAG with multi-tier memory"
+  language: "Rust"
+  status: "Active Development"
+  last_updated: "2025-01-22"
+
+paths:
+  project_root: "C:\\codedev\\llm\\rag-redis"
+  mcp_server: "rag-redis-system/mcp-server/"
+  core_lib: "rag-redis-system/src/"
+  tests: "rag-redis-system/tests/"
+  archived_python: ".archive/python-mcp-bridge/"
+  context_files: ".claude/context/"
+
+key_files:
+  workspace_config: "Cargo.toml"
+  mcp_entry: "rag-redis-system/mcp-server/src/main.rs"
+  mcp_tools: "rag-redis-system/mcp-server/src/tools.rs"
+  memory_system: "rag-redis-system/src/memory/mod.rs"
+  embeddings: "rag-redis-system/src/embeddings/mod.rs"
+  functional_tests: "rag-redis-system/tests/functional_tests.rs"
+
+runtime:
+  redis:
+    port: 6380
+    status: "Required"
+  mcp:
+    protocol: "JSON-RPC 2.0"
+    transport: "stdio"
+  logging:
+    env_var: "RUST_LOG"
+    default: "info"
+
+dependencies:
+  core:
+    - tokio: "async runtime"
+    - serde: "serialization"
+    - redis: "backend storage"
+    - candle: "ML embeddings"
+  mcp_server:
+    - jsonrpc-v2: "RPC protocol"
+    - anyhow: "error handling"
+    - tracing: "structured logging"
+
+memory_tiers:
+  working:
+    capacity: 10
+    purpose: "Immediate context"
+  short_term:
+    capacity: 100
+    purpose: "Recent interactions"
+  long_term:
+    capacity: 10000
+    purpose: "Consolidated knowledge"
+  episodic:
+    capacity: "unlimited"
+    purpose: "Time-sequenced events"
+  semantic:
+    capacity: "unlimited"
+    purpose: "Concept graphs"
+
+mcp_tools:
+  - store_memory: "Add to memory tier"
+  - retrieve_memory: "Get from tier"
+  - search_memory: "Semantic search"
+  - consolidate_memory: "Merge memories"
+  - analyze_memory_patterns: "Find patterns"
+  - get_memory_stats: "System stats"
+  - clear_memory: "Remove memories"
+
+recent_changes:
+  - date: "2025-01-22"
+    change: "Migrated from Python to native Rust MCP"
+  - date: "2025-01-22"
+    change: "Integrated Candle ML framework"
+  - date: "2025-01-22"
+    change: "Archived Python bridge"
+  - date: "2025-01-22"
+    change: "Implemented all 7 MCP tools"
+
+pending_tasks:
+  high_priority:
+    - "Validate MCP stdio with Claude Desktop"
+    - "Integrate real embedding model"
+  medium_priority:
+    - "Remove mock code"
+    - "Optimize model loading"
+  low_priority:
+    - "Update documentation"
+    - "Add visualization tools"
+
+performance_metrics:
+  vector_ops: "<1ms"
+  memory_store: "<5ms"
+  memory_retrieve: "<10ms"
+  consolidation: "<1s for 1000 items"
+  target_embedding: "<100ms"
+
+test_status:
+  unit_tests: "passing"
+  integration_tests: "passing"
+  mcp_validation: "pending"
+  performance_tests: "meeting targets"
+
+agents_involved:
+  - rust-pro: "MCP implementation"
+  - deployment-engineer: "Migration execution"
+  - test-automator: "Test creation"
+  - architect-reviewer: "Design validation"
+
+quick_commands:
+  build: "cargo build --release --workspace"
+  test: "cargo test --workspace"
+  run_mcp: "cargo run --bin mcp-server"
+  check_redis: "redis-cli -p 6380 ping"
+  clean: "cargo clean"
+
+integration_status:
+  claude_desktop: "Pending validation"
+  redis: "Active on 6380"
+  parent_project: "Via MCP protocol"
+
+notes:
+  - "Python bridge is archived, do not use"
+  - "Candle replaces ONNX for embeddings"
+  - "All operations must be sub-second"
+  - "Redis must be running for system to work"
+  - "Use RUST_LOG=info for debugging"

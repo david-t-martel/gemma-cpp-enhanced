@@ -6,7 +6,7 @@ This project provides a high-performance Retrieval-Augmented Generation (RAG) sy
 
 *   **High-Performance RAG**: A SIMD-optimized vector store for fast similarity search.
 *   **Redis Backend**: A scalable and persistent storage for documents and embeddings.
-*   **Python Bridge**: A Python interface for interacting with the RAG system, exposed as an MCP server.
+*   **Native Rust MCP Server**: A native Rust implementation for MCP protocol integration (Python bridge has been archived).
 *   **Multi-tier Memory**: A sophisticated memory system with short-term, long-term, episodic, semantic, and working memory.
 
 ## Getting Started
@@ -30,12 +30,15 @@ This will create the necessary binaries in the `target/release` directory.
 
 The `rag-redis` system is designed to be run as an MCP server, which is used by the `stats` agent. The `stats` agent is already configured to launch the MCP server automatically.
 
-The Python bridge for the MCP server is located in the `python-bridge` directory. To install its dependencies, run:
+The native Rust MCP server is integrated directly in the system. To build and run it:
 
 ```bash
-cd C:\codedev\llm\rag-redis\python-bridge
-uv pip install -e .
+cd rag-redis-system/mcp-server
+cargo build --release
+cargo run --release
 ```
+
+**Note**: The previous Python bridge has been archived to `.archive/python-mcp-bridge/`
 
 ## Integration with the `stats` agent
 

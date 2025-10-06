@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::env;
 use std::io;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader};
@@ -9,13 +9,13 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 mod handlers;
 mod protocol;
 mod tools;
-mod mock_rag;
 
 use handlers::McpHandler;
 use protocol::{JsonRpcRequest, JsonRpcResponse};
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() -> Result<()> {
+    // Optimized for I/O-bound MCP operations with minimal worker threads
     // Initialize logging
     init_logging()?;
 
@@ -59,9 +59,9 @@ fn init_logging() -> Result<()> {
     Ok(())
 }
 
-async fn load_config() -> Result<mock_rag::Config> {
+async fn load_config() -> Result<rag_redis_system::Config> {
     // Try to load config from environment or use defaults
-    let config = mock_rag::Config::default();
+    let config = rag_redis_system::Config::default();
 
     info!("Using default configuration");
     debug!("Config: Redis URL from env or default");
@@ -154,18 +154,17 @@ async fn send_response(
 mod tests {
     use super::*;
     use protocol::{InitializeRequest, ClientCapabilities, ClientInfo};
-    use tokio_test;
 
     #[tokio::test]
     async fn test_handler_initialization() {
-        let config = mock_rag::Config::default();
+        let config = rag_redis_system::Config::default();
         let handler = McpHandler::new(config).await;
         assert!(handler.is_ok());
     }
 
     #[tokio::test]
     async fn test_initialize_request() {
-        let config = mock_rag::Config::default();
+        let config = rag_redis_system::Config::default();
         let handler = McpHandler::new(config).await.unwrap();
 
         let init_request = InitializeRequest {
@@ -194,7 +193,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_tools_list() {
-        let config = mock_rag::Config::default();
+        let config = rag_redis_system::Config::default();
         let handler = McpHandler::new(config).await.unwrap();
 
         // First initialize
@@ -239,7 +238,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ping() {
-        let config = mock_rag::Config::default();
+        let config = rag_redis_system::Config::default();
         let handler = McpHandler::new(config).await.unwrap();
 
         let request = JsonRpcRequest {
@@ -256,7 +255,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_unknown_method() {
-        let config = mock_rag::Config::default();
+        let config = rag_redis_system::Config::default();
         let handler = McpHandler::new(config).await.unwrap();
 
         let request = JsonRpcRequest {

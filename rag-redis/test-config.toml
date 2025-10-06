@@ -1,0 +1,16 @@
+[redis]
+url = "redis://127.0.0.1:6380"
+pool_size = 10
+
+[vector]
+dimension = 768
+distance_metric = "cosine"
+
+[embedding]
+model = "all-MiniLM-L6-v2"
+provider = "local"
+dimension = 768
+
+[server]
+host = "127.0.0.1"
+port = 8080

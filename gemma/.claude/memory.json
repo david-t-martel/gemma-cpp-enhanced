@@ -1,0 +1,433 @@
+{
+  "project": {
+    "name": "Gemma.cpp Enhanced",
+    "version": "2.0.0",
+    "description": "Hardware-accelerated inference engine for Google Gemma models",
+    "status": "production-ready",
+    "last_updated": "2025-09-21"
+  },
+  "configuration": {
+    "model_path": "C:\\codedev\\llm\\.models",
+    "default_model": "gemma2-2b-it-sfp.sbs",
+    "default_tokenizer": "tokenizer.spm",
+    "cmake_path": "C:\\Program Files\\CMake\\bin\\cmake.exe",
+    "build_generator": "Visual Studio 17 2022",
+    "build_toolset": "v143"
+  },
+  "available_backends": {
+    "cuda": {
+      "status": "production",
+      "path": "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.0",
+      "architectures": [
+        "sm_86",
+        "sm_89",
+        "sm_90"
+      ],
+      "features": [
+        "tensor_cores",
+        "flash_attention",
+        "int8_quantization"
+      ],
+      "performance": "400-500 tokens/sec (2B model)"
+    },
+    "sycl": {
+      "status": "production",
+      "path": "C:\\Program Files (x86)\\Intel\\oneAPI",
+      "devices": [
+        "intel_gpu",
+        "intel_npu"
+      ],
+      "features": [
+        "onemkl",
+        "usm",
+        "profiling"
+      ],
+      "performance": "250-300 tokens/sec (2B model)"
+    },
+    "vulkan": {
+      "status": "production",
+      "features": [
+        "cross_platform",
+        "compute_shaders"
+      ],
+      "performance": "350-400 tokens/sec (2B model)"
+    },
+    "cpu": {
+      "status": "production",
+      "features": [
+        "simd_highway",
+        "numa_aware",
+        "thread_pools"
+      ],
+      "performance": "30-50 tokens/sec (2B model)"
+    }
+  },
+  "common_tasks": {
+    "build_project": {
+      "description": "Build Gemma.cpp with auto-detection",
+      "command": ".\\build_all.bat",
+      "alternatives": [
+        "cmake -B build -G \"Visual Studio 17 2022\" -T v143",
+        "cmake --build build --config Release"
+      ]
+    },
+    "run_inference": {
+      "description": "Run basic inference",
+      "command": ".\\build\\Release\\gemma.exe --weights {model} --prompt \"{text}\"",
+      "parameters": {
+        "model": "Path to model weights (.sbs file)",
+        "text": "Input prompt text"
+      }
+    },
+    "start_mcp_server": {
+      "description": "Start MCP server for tool calling",
+      "command": ".\\build\\mcp\\gemma_mcp_stdio_server.exe --weights {model} --tokenizer {tokenizer}",
+      "parameters": {
+        "model": "Path to model weights",
+        "tokenizer": "Path to tokenizer file"
+      }
+    },
+    "run_tests": {
+      "description": "Run comprehensive test suite",
+      "command": ".\\test_all.bat",
+      "categories": [
+        "unit",
+        "integration",
+        "performance",
+        "backends"
+      ]
+    },
+    "benchmark": {
+      "description": "Benchmark performance",
+      "command": ".\\build\\Release\\benchmark_gemma.exe --weights {model} --iterations {n}",
+      "parameters": {
+        "model": "Model to benchmark",
+        "n": "Number of iterations (default: 100)"
+      }
+    },
+    "create_session": {
+      "description": "Create inference session",
+      "command": "gemma_session create --name {name} --max-context {size}",
+      "parameters": {
+        "name": "Session identifier",
+        "size": "Maximum context size (default: 4096)"
+      }
+    },
+    "validate_backends": {
+      "description": "Check available hardware backends",
+      "command": "python scripts\\validate_backend.py --all"
+    },
+    "profile_performance": {
+      "description": "Profile inference performance",
+      "command": "gemma.exe --weights {model} --profile --output {report}",
+      "parameters": {
+        "model": "Model to profile",
+        "report": "Output report file (JSON)"
+      }
+    }
+  },
+  "build_configurations": {
+    "release": {
+      "cmake_args": "-DCMAKE_BUILD_TYPE=Release",
+      "optimizations": "O2, NDEBUG",
+      "use_case": "production"
+    },
+    "debug": {
+      "cmake_args": "-DCMAKE_BUILD_TYPE=Debug",
+      "features": "assertions, symbols, sanitizers",
+      "use_case": "development, debugging"
+    },
+    "relwithdebinfo": {
+      "cmake_args": "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+      "features": "optimized with debug symbols",
+      "use_case": "profiling, production debugging"
+    }
+  },
+  "backend_capabilities": {
+    "matrix_operations": {
+      "cuda": [
+        "cublas",
+        "cutlass",
+        "tensor_cores"
+      ],
+      "sycl": [
+        "onemkl",
+        "dpct",
+        "usm"
+      ],
+      "vulkan": [
+        "compute_shaders",
+        "spirv"
+      ],
+      "cpu": [
+        "highway_simd",
+        "eigen",
+        "openblas"
+      ]
+    },
+    "memory_management": {
+      "cuda": [
+        "unified_memory",
+        "pinned_memory",
+        "p2p"
+      ],
+      "sycl": [
+        "usm_shared",
+        "usm_device",
+        "usm_host"
+      ],
+      "vulkan": [
+        "device_local",
+        "host_visible",
+        "coherent"
+      ],
+      "cpu": [
+        "numa_aware",
+        "huge_pages",
+        "aligned_alloc"
+      ]
+    },
+    "quantization": {
+      "cuda": [
+        "int4",
+        "int8",
+        "fp16"
+      ],
+      "sycl": [
+        "int8",
+        "fp16"
+      ],
+      "vulkan": [
+        "int8",
+        "fp16"
+      ],
+      "cpu": [
+        "int8",
+        "bf16"
+      ]
+    }
+  },
+  "performance_metrics": {
+    "2b_model": {
+      "memory_usage": {
+        "fp32": "8GB",
+        "fp16": "4GB",
+        "int8": "2GB",
+        "int4": "1GB"
+      },
+      "inference_speed": {
+        "cuda_rtx4060": "400-500 tok/s",
+        "sycl_arc_a770": "250-300 tok/s",
+        "vulkan_rtx4060": "350-400 tok/s",
+        "cpu_i7_13700k": "30-50 tok/s"
+      },
+      "first_token_latency": {
+        "cuda": "<50ms",
+        "sycl": "<80ms",
+        "vulkan": "<60ms",
+        "cpu": "<200ms"
+      }
+    }
+  },
+  "workflow_patterns": {
+    "development": [
+      "Edit source code",
+      "Build with debug configuration",
+      "Run unit tests",
+      "Test with small model",
+      "Profile if needed"
+    ],
+    "testing": [
+      "Build all configurations",
+      "Run comprehensive tests",
+      "Validate all backends",
+      "Benchmark performance",
+      "Check memory leaks"
+    ],
+    "deployment": [
+      "Build release configuration",
+      "Optimize for target hardware",
+      "Package with dependencies",
+      "Create Docker image",
+      "Deploy and monitor"
+    ]
+  },
+  "troubleshooting": {
+    "model_loading_error": {
+      "symptoms": [
+        "Cannot load weights",
+        "File not found"
+      ],
+      "solutions": [
+        "Check file paths are absolute",
+        "Verify model format compatibility",
+        "Ensure sufficient memory",
+        "Try single-file format"
+      ]
+    },
+    "backend_not_detected": {
+      "symptoms": [
+        "Backend unavailable",
+        "Falling back to CPU"
+      ],
+      "solutions": [
+        "Install required SDK",
+        "Update GPU drivers",
+        "Set environment variables",
+        "Check cmake output"
+      ]
+    },
+    "performance_issues": {
+      "symptoms": [
+        "Slow inference",
+        "High memory usage"
+      ],
+      "solutions": [
+        "Use quantization",
+        "Reduce batch size",
+        "Enable memory mapping",
+        "Profile with benchmarks"
+      ]
+    },
+    "build_failures": {
+      "symptoms": [
+        "Compilation errors",
+        "Link errors"
+      ],
+      "solutions": [
+        "Clean build directory",
+        "Update CMake version",
+        "Check SDK versions",
+        "Review build logs"
+      ]
+    }
+  },
+  "optimization_tips": {
+    "memory": [
+      "Use quantization (int8/int4)",
+      "Enable memory mapping",
+      "Reduce context length",
+      "Clear unused sessions"
+    ],
+    "speed": [
+      "Use hardware backends",
+      "Enable tensor cores (CUDA)",
+      "Optimize batch sizes",
+      "Use flash attention"
+    ],
+    "quality": [
+      "Use larger models",
+      "Adjust sampling parameters",
+      "Enable beam search",
+      "Fine-tune temperature"
+    ]
+  },
+  "important_files": {
+    "build_scripts": [
+      "build_all.bat",
+      "test_all.bat",
+      "deploy_windows.bat",
+      "quick_start.bat"
+    ],
+    "configuration": [
+      "CMakeLists.txt",
+      "CMakePresets.json",
+      ".env",
+      "mcp.json"
+    ],
+    "documentation": [
+      ".claude/CLAUDE.md",
+      "docs/ARCHITECTURE.md",
+      "docs/REFACTORING.md",
+      "backends/README.md"
+    ],
+    "source_entry_points": [
+      "src/core/model.cpp",
+      "src/interfaces/cli/main.cpp",
+      "src/interfaces/mcp/server.cpp",
+      "src/session/session_manager.cpp"
+    ]
+  },
+  "environment_variables": {
+    "GEMMA_BACKEND": "Backend selection (auto|cuda|sycl|vulkan|cpu)",
+    "GEMMA_LOG_LEVEL": "Logging verbosity (error|warning|info|debug|trace)",
+    "GEMMA_NUM_THREADS": "CPU thread count",
+    "GEMMA_MAX_MEMORY_GB": "Memory limit in GB",
+    "CUDA_VISIBLE_DEVICES": "CUDA device selection",
+    "ONEAPI_DEVICE_SELECTOR": "SYCL device selection"
+  },
+  "testing_commands": {
+    "unit_tests": "ctest --test-dir build -R unit",
+    "integration_tests": "ctest --test-dir build -R integration",
+    "backend_tests": "ctest --test-dir build -R backend",
+    "performance_tests": "ctest --test-dir build -R performance",
+    "all_tests": ".\\test_all.bat"
+  },
+  "mcp_tools": {
+    "generate_text": {
+      "description": "Generate text from prompt",
+      "parameters": [
+        "prompt",
+        "max_tokens",
+        "temperature",
+        "stream"
+      ]
+    },
+    "count_tokens": {
+      "description": "Count tokens in text",
+      "parameters": [
+        "text"
+      ]
+    },
+    "get_model_info": {
+      "description": "Get model information",
+      "parameters": []
+    }
+  },
+  "session_management": {
+    "commands": {
+      "create": "gemma_session create --name {name}",
+      "resume": "gemma_session resume --name {name}",
+      "list": "gemma_session list",
+      "delete": "gemma_session delete --name {name}"
+    },
+    "features": [
+      "Context preservation",
+      "Checkpointing",
+      "Memory types (rolling, hierarchical)",
+      "Compression",
+      "Multi-turn conversations"
+    ]
+  },
+  "sampling_algorithms": {
+    "basic": [
+      "temperature",
+      "top_k",
+      "top_p"
+    ],
+    "advanced": [
+      "min_p",
+      "typical_p",
+      "dynatemp",
+      "dry",
+      "mirostat"
+    ],
+    "presets": {
+      "creative": {
+        "temperature": 1.2,
+        "top_p": 0.95,
+        "typical_p": 0.95
+      },
+      "factual": {
+        "temperature": 0.1,
+        "top_k": 5,
+        "mirostat": 2
+      },
+      "code": {
+        "temperature": 0.2,
+        "top_k": 10,
+        "min_p": 0.05
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "mcpServers": {
+    "gemma-mcp": {
+      "command": "python",
+      "args": [
+        "/c/codedev/llm/mcp-gemma/server/main.py",
+        "--mode", "stdio",
+        "--model", "/c/codedev/llm/.models/gemma2-2b-it-sfp.sbs",
+        "--tokenizer", "/c/codedev/llm/.models/tokenizer.spm"
+      ],
+      "env": {
+        "PYTHONPATH": "/c/codedev/llm/mcp-gemma",
+        "GEMMA_LOG_LEVEL": "INFO"
+      }
+    },
+    "gemma-mcp-http": {
+      "command": "python",
+      "args": [
+        "/c/codedev/llm/mcp-gemma/server/main.py",
+        "--mode", "http",
+        "--host", "localhost",
+        "--port", "8080",
+        "--model", "/c/codedev/llm/.models/gemma2-2b-it-sfp.sbs",
+        "--tokenizer", "/c/codedev/llm/.models/tokenizer.spm"
+      ],
+      "env": {
+        "PYTHONPATH": "/c/codedev/llm/mcp-gemma",
+        "GEMMA_LOG_LEVEL": "INFO"
+      }
+    },
+    "gemma-mcp-ws": {
+      "command": "python",
+      "args": [
+        "/c/codedev/llm/mcp-gemma/server/main.py",
+        "--mode", "websocket",
+        "--host", "localhost",
+        "--port", "8081",
+        "--model", "/c/codedev/llm/.models/gemma2-2b-it-sfp.sbs",
+        "--tokenizer", "/c/codedev/llm/.models/tokenizer.spm"
+      ],
+      "env": {
+        "PYTHONPATH": "/c/codedev/llm/mcp-gemma",
+        "GEMMA_LOG_LEVEL": "INFO"
+      }
+    },
+    "gemma-mcp-all": {
+      "command": "python",
+      "args": [
+        "/c/codedev/llm/mcp-gemma/server/main.py",
+        "--mode", "all",
+        "--host", "localhost",
+        "--port", "8080",
+        "--ws-port", "8081",
+        "--model", "/c/codedev/llm/.models/gemma2-2b-it-sfp.sbs",
+        "--tokenizer", "/c/codedev/llm/.models/tokenizer.spm"
+      ],
+      "env": {
+        "PYTHONPATH": "/c/codedev/llm/mcp-gemma",
+        "GEMMA_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}

@@ -1,0 +1,56 @@
+name: Lint & Format
+
+on:
+  push:
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint-and-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (apt)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format cmake ninja-build python3-pip
+
+      - name: Install Python tools
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install ruff
+
+      - name: Ruff Lint
+        run: |
+          ruff check .
+
+      - name: Ruff Format Check
+        run: |
+          ruff format --check .
+
+      - name: C++ Clang-Format Check
+        run: |
+          set -e
+          FILES=$(git ls-files '*.h' '*.hh' '*.hpp' '*.hxx' '*.c' '*.cc' '*.cpp' '*.cxx')
+          echo "Checking formatting on $(echo "$FILES" | wc -w) files"
+          CLANG_DIFF=0
+          for f in $FILES; do
+            diff -u <(cat "$f") <(clang-format "$f") || CLANG_DIFF=1
+          done
+          if [ $CLANG_DIFF -ne 0 ]; then
+            echo 'Formatting issues detected. Run clang-format to fix.'
+            exit 1
+          fi
+
+      - name: CMake Configure (generate compile_commands.json for cpptools validation)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DGEMMA_BUILD_ENHANCED_TESTS=OFF
+
+      - name: Summary
+        run: |
+          echo "All lint/format checks passed."

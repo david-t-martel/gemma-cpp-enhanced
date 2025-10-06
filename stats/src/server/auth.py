@@ -69,35 +69,63 @@ class JWTAuthenticator:
         self.revoked_tokens: set[str] = set()
 
     def _get_or_create_jwt_secret(self) -> str:
-        """Get JWT secret from settings or generate one.
+        """Get JWT secret from settings or environment.
 
         Returns:
             JWT secret key
+
+        Raises:
+            ValueError: If no secret is configured in production
         """
         import os
+        from pathlib import Path
 
-        # Try to get from settings
+        # Try to get from settings first
         if self.settings.security.jwt_secret:
             return self.settings.security.jwt_secret
 
         # Try to get from environment
         env_secret = os.getenv("GEMMA_JWT_SECRET")
-        if env_secret:
+        if env_secret and len(env_secret) >= 32:  # Ensure minimum length
             return env_secret
 
-        # Generate a secure secret in development
+        # In development, try to load or create a persistent secret file
         if not self.settings.is_production():
+            secret_file = Path.home() / ".gemma" / "jwt_secret.key"
+            secret_file.parent.mkdir(parents=True, exist_ok=True)
+
+            if secret_file.exists():
+                # Load existing secret
+                try:
+                    with open(secret_file, "r", encoding="utf-8") as f:
+                        saved_secret = f.read().strip()
+                        if saved_secret and len(saved_secret) >= 64:
+                            logger.info("Loaded JWT secret from persistent storage")
+                            return saved_secret
+                except Exception as e:
+                    logger.warning(f"Failed to load JWT secret file: {e}")
+
+            # Generate and save a new secret
             secret = secrets.token_urlsafe(64)
-            logger.warning(
-                "No JWT secret configured. Generated temporary secret for development. "
-                "Set GEMMA_JWT_SECRET environment variable for production."
-            )
+            try:
+                with open(secret_file, "w", encoding="utf-8") as f:
+                    f.write(secret)
+                # Secure file permissions (Unix-like systems)
+                if hasattr(os, "chmod"):
+                    os.chmod(secret_file, 0o600)
+                logger.warning(
+                    f"Generated and saved JWT secret to {secret_file}. "
+                    "For production, set GEMMA_JWT_SECRET environment variable."
+                )
+            except Exception as e:
+                logger.error(f"Failed to save JWT secret: {e}")
+
             return secret
 
         # Require explicit configuration in production
         raise ValueError(
             "JWT secret must be configured in production. "
-            "Set GEMMA_JWT_SECRET environment variable."
+            "Set GEMMA_JWT_SECRET environment variable with at least 32 characters."
         )
 
     def _hash_api_key(self, api_key: str) -> str:

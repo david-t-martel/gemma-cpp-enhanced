@@ -1,9 +1,7 @@
 # Intel SYCL Backend for Gemma.cpp
 # Provides Intel GPU and NPU acceleration using oneAPI SYCL
 # Requires Intel oneAPI Toolkit 2024.1 or later
-
-cmake_minimum_required(VERSION 3.20)  # Required for SYCL support
-
+# (Relies on top-level cmake_minimum_required)
 # Check for Intel oneAPI toolkit
 find_package(IntelSYCL QUIET)
 
@@ -149,13 +147,14 @@ target_link_options(gemma_sycl_backend PRIVATE
 
 # Include directories
 target_include_directories(gemma_sycl_backend PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
+    $<INSTALL_INTERFACE:include>
 )
 
 # Find and link oneMKL with enhanced Windows detection
 find_package(MKL QUIET)
-if(MKL_FOUND)
+if(MKL_FOUND AND TARGET MKL::MKL_SYCL)
     target_link_libraries(gemma_sycl_backend PRIVATE MKL::MKL_SYCL)
     target_compile_definitions(gemma_sycl_backend PRIVATE GEMMA_ENABLE_ONEMKL)
     message(STATUS "oneMKL found and enabled for SYCL backend")
@@ -413,6 +412,16 @@ set_property(GLOBAL APPEND PROPERTY GEMMA_AVAILABLE_BACKENDS "SYCL")
 message(STATUS "========================================")
 message(STATUS "Intel SYCL Backend Configuration:")
 message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER}")
+if(NOT INTEL_ONEAPI_ROOT)
+    # Infer root if not set (fallback from compiler path)
+    if(ICPX_COMPILER)
+        get_filename_component(_icx_dir ${ICPX_COMPILER} DIRECTORY)
+        get_filename_component(INTEL_ONEAPI_ROOT ${_icx_dir}/../../.. ABSOLUTE)
+    elseif(DPCPP_COMPILER)
+        get_filename_component(_dpcpp_dir ${DPCPP_COMPILER} DIRECTORY)
+        get_filename_component(INTEL_ONEAPI_ROOT ${_dpcpp_dir}/../../.. ABSOLUTE)
+    endif()
+endif()
 message(STATUS "  Intel oneAPI Root: ${INTEL_ONEAPI_ROOT}")
 message(STATUS "  oneMKL: ${MKL_FOUND}")
 message(STATUS "  Device Selector V: ${SYCL_HAS_DEVICE_SELECTOR_V}")
@@ -489,13 +498,7 @@ if(GEMMA_BUILD_EXAMPLES)
 endif()
 
 # Documentation
-if(GEMMA_BUILD_DOCS)
-    configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/README.md.in
-        ${CMAKE_CURRENT_BINARY_DIR}/README.md
-        @ONLY
-    )
-endif()
+# Documentation generation skipped: template README.md.in not present.
 
 else()
     message(STATUS "SYCL backend disabled - Intel oneAPI toolkit not found")

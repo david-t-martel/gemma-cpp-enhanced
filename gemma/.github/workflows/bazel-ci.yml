@@ -1,0 +1,46 @@
+name: Bazel CI (Subset)
+
+on:
+  pull_request:
+    paths:
+      - 'gemma.cpp/WORKSPACE'
+      - 'gemma.cpp/MODULE.bazel'
+      - 'gemma.cpp/**.bazel'
+      - 'gemma.cpp/**/BUILD'
+      - 'gemma.cpp/**/BUILD.bazel'
+      - '.github/workflows/bazel-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  bazel-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bazelisk
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl
+          curl -L https://github.com/bazelbuild/bazelisk/releases/download/v1.20.0/bazelisk-linux-amd64 -o /usr/local/bin/bazel
+          chmod +x /usr/local/bin/bazel
+
+      - name: Bazel version
+        run: bazel version
+
+      - name: Bazel build (core library minimal)
+        working-directory: gemma.cpp
+        run: |
+          bazel build //:gemma --compilation_mode=opt
+
+      - name: Bazel test (lightweight targets)
+        working-directory: gemma.cpp
+        run: |
+          # Run only small / fast tests to keep CI quick
+          bazel test //:tensor_info_test //:configs_test --test_output=errors --compilation_mode=fastbuild
+
+      - name: Bazel cquery summary
+        working-directory: gemma.cpp
+        run: |
+          bazel cquery 'kind(cc_library, //...)' | head -n 40

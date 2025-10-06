@@ -28,6 +28,7 @@
 #include "hwy/base.h"
 #include "hwy/profiler.h"
 #include "hwy/timer.h"
+// (Removed custom scalar fallback header; relying on Highway's native scalar implementation)
 
 // Include guard for (potentially) SIMD code.
 #if defined(THIRD_PARTY_GEMMA_CPP_MATMUL_TOGGLE) == defined(HWY_TARGET_TOGGLE)
@@ -47,15 +48,18 @@ namespace HWY_NAMESPACE {
 namespace hn = hwy::HWY_NAMESPACE;
 
 // Like hn::PromoteOddTo, but uses assembly to avoid an extra vector register.
-template <class DF, class DBF = hn::Repartition<BF16, DF>>
-static hn::VFromD<DF> FastPromoteOddTo(DF df, hn::VFromD<DBF> vbf) {
+template <class DF, class VBF>
+static hn::VFromD<DF> FastPromoteOddTo(DF df, VBF vbf) {
   // Promoting odd means clearing the lower 16 bits. Doing this via AND
   // requires a second input vector, which we prefer to avoid due to high
   // register pressure. Unfortunately `hn::IfThenElseZero` and
   // `IfThenZeroElse` are 'optimized' back to AND, hence resort to assembly.
   // Note that SVE also has separate mask registers, but it anyway uses the
   // native BF16 dot product code path.
-#if HWY_TARGET < HWY_AVX2
+#if HWY_TARGET == HWY_SCALAR
+  // In scalar mode, there are no odd elements, so return zero
+  return hn::Zero(df);
+#elif HWY_TARGET < HWY_AVX2
   const hn::Repartition<uint16_t, decltype(df)> du16;
   const auto odd = static_cast<__mmask32>(0xAAAAAAAAu);  // 10..10 (32 lanes)
   // In-out because this is called after PromoteEvenTo, when we can clobber

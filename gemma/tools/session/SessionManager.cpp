@@ -1,16 +1,26 @@
 #include "SessionManager.h"
+#include "SessionStorage.h" // concrete implementation (temporary until DI introduced)
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
 #include <stdexcept>
 #include <fstream>
+#include <nlohmann/json.hpp>
 
 namespace gemma {
 namespace session {
 
 SessionManager::SessionManager(const Config& config)
     : config_(config)
-    , storage_(std::make_unique<SessionStorage>(config_.storage_config))
+    , storage_([&config]() {
+        SessionStorage::Config cfg; // aggregate with defaults
+        cfg.db_path = config.storage_config.db_path;
+        cfg.cache_capacity = config.storage_config.cache_capacity;
+        cfg.session_ttl = config.storage_config.session_ttl;
+        cfg.enable_auto_cleanup = config.storage_config.enable_auto_cleanup;
+        cfg.cleanup_interval = config.storage_config.cleanup_interval;
+        return std::make_unique<SessionStorage>(cfg);
+      }())
     , uuid_generator_(std::random_device{}())
     , initialized_(false)
     , last_metrics_update_(std::chrono::system_clock::now()) {
@@ -36,10 +46,9 @@ bool SessionManager::initialize() {
     
     initialized_ = true;
     
-    fire_event("manager_initialized", nlohmann::json{
-        {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count()}
-    });
+    nlohmann::json init_evt{{"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count()}};
+    fire_event("manager_initialized", init_evt.dump());
     
     return true;
 }
@@ -78,16 +87,20 @@ std::string SessionManager::create_session(const CreateOptions& options) {
     metrics_.total_sessions_created++;
     update_metrics();
     
-    fire_event("session_created", nlohmann::json{
-        {"session_id", session_id},
-        {"max_context_tokens", max_context_tokens},
-        {"metadata", options.metadata},
-        {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count()}
-    });
+    nlohmann::json created_evt{{"session_id", session_id},
+                               {"max_context_tokens", max_context_tokens},
+                               {"metadata", options.metadata_json},
+                               {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   std::chrono::system_clock::now().time_since_epoch()).count()}};
+    fire_event("session_created", created_evt.dump());
     
     return session_id;
 }
+
+    // Convenience overload using defaults defined in CreateSessionOptions' default constructor
+    std::string SessionManager::create_session() {
+        return create_session(CreateOptions{});
+    }
 
 std::shared_ptr<Session> SessionManager::get_session(const std::string& session_id) {
     std::lock_guard<std::mutex> lock(manager_mutex_);
@@ -102,11 +115,10 @@ std::shared_ptr<Session> SessionManager::get_session(const std::string& session_
     
     auto session = storage_->load_session(session_id);
     if (session) {
-        fire_event("session_accessed", nlohmann::json{
-            {"session_id", session_id},
-            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()}
-        });
+        nlohmann::json accessed_evt{{"session_id", session_id},
+                                    {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        std::chrono::system_clock::now().time_since_epoch()).count()}};
+        fire_event("session_accessed", accessed_evt.dump());
     }
     
     return session;
@@ -129,11 +141,10 @@ bool SessionManager::delete_session(const std::string& session_id) {
         metrics_.total_sessions_deleted++;
         update_metrics();
         
-        fire_event("session_deleted", nlohmann::json{
-            {"session_id", session_id},
-            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()}
-        });
+        nlohmann::json deleted_evt{{"session_id", session_id},
+                                   {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                                       std::chrono::system_clock::now().time_since_epoch()).count()}};
+        fire_event("session_deleted", deleted_evt.dump());
     }
     
     return success;
@@ -177,14 +188,13 @@ bool SessionManager::add_message(const std::string& session_id,
         metrics_.total_tokens_processed += token_count;
         update_metrics();
         
-        fire_event("message_added", nlohmann::json{
-            {"session_id", session_id},
-            {"role", static_cast<int>(role)},
-            {"content_length", content.length()},
-            {"token_count", token_count},
-            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()}
-        });
+        nlohmann::json msg_evt{{"session_id", session_id},
+                               {"role", static_cast<int>(role)},
+                               {"content_length", content.length()},
+                               {"token_count", token_count},
+                               {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   std::chrono::system_clock::now().time_since_epoch()).count()}};
+        fire_event("message_added", msg_evt.dump());
     }
     
     return success;
@@ -238,11 +248,10 @@ bool SessionManager::clear_session_history(const std::string& session_id) {
     bool success = storage_->save_session(session);
     
     if (success) {
-        fire_event("session_history_cleared", nlohmann::json{
-            {"session_id", session_id},
-            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()}
-        });
+        nlohmann::json clr_evt{{"session_id", session_id},
+                               {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   std::chrono::system_clock::now().time_since_epoch()).count()}};
+        fire_event("session_history_cleared", clr_evt.dump());
     }
     
     return success;
@@ -264,20 +273,19 @@ bool SessionManager::update_session_context_size(const std::string& session_id, 
     bool success = storage_->save_session(session);
     
     if (success) {
-        fire_event("session_context_updated", nlohmann::json{
-            {"session_id", session_id},
-            {"max_context_tokens", max_context_tokens},
-            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()}
-        });
+        nlohmann::json ctx_evt{{"session_id", session_id},
+                               {"max_context_tokens", max_context_tokens},
+                               {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   std::chrono::system_clock::now().time_since_epoch()).count()}};
+        fire_event("session_context_updated", ctx_evt.dump());
     }
     
     return success;
 }
 
-std::vector<nlohmann::json> SessionManager::list_sessions(size_t limit, size_t offset, 
-                                                         const std::string& sort_by, 
-                                                         bool ascending) {
+std::vector<std::string> SessionManager::list_sessions(size_t limit, size_t offset,
+                                                       const std::string& sort_by,
+                                                       bool ascending) {
     std::lock_guard<std::mutex> lock(manager_mutex_);
     
     if (!initialized_) {
@@ -344,7 +352,7 @@ size_t SessionManager::import_sessions(const std::string& file_path, bool overwr
         size_t imported_count = 0;
         for (const auto& session_json : import_data) {
             try {
-                auto session = std::make_shared<Session>(session_json);
+                    auto session = std::make_shared<Session>(session_json);
                 
                 if (!overwrite_existing && storage_->session_exists(session->get_session_id())) {
                     continue;
@@ -353,21 +361,20 @@ size_t SessionManager::import_sessions(const std::string& file_path, bool overwr
                 if (storage_->save_session(session)) {
                     imported_count++;
                     
-                    fire_event("session_imported", nlohmann::json{
-                        {"session_id", session->get_session_id()},
-                        {"overwrite", overwrite_existing},
-                        {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::system_clock::now().time_since_epoch()).count()}
-                    });
+                    nlohmann::json imp_evt{{"session_id", session->get_session_id()},
+                                           {"overwrite", overwrite_existing},
+                                           {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                                               std::chrono::system_clock::now().time_since_epoch()).count()}};
+                    fire_event("session_imported", imp_evt.dump());
                 }
-            } catch (const std::exception& e) {
+            } catch (const std::exception&) {
                 // Skip invalid session entries
                 continue;
             }
         }
         
         return imported_count;
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         return 0;
     }
 }
@@ -382,27 +389,26 @@ size_t SessionManager::cleanup_expired_sessions() {
     size_t cleaned_count = storage_->cleanup_expired_sessions();
     
     if (cleaned_count > 0) {
-        fire_event("sessions_cleaned_up", nlohmann::json{
-            {"count", cleaned_count},
-            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()}
-        });
+        nlohmann::json clean_evt{{"count", cleaned_count},
+                                 {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::system_clock::now().time_since_epoch()).count()}};
+        fire_event("sessions_cleaned_up", clean_evt.dump());
     }
     
     return cleaned_count;
 }
 
-nlohmann::json SessionManager::get_statistics() {
+std::string SessionManager::get_statistics() {
     std::lock_guard<std::mutex> lock(manager_mutex_);
     
     if (!initialized_) {
-        return nlohmann::json{};
+        return std::string("{}");
     }
     
     auto storage_stats = storage_->get_statistics();
     auto metrics = get_metrics();
     
-    return nlohmann::json{
+    nlohmann::json stats = nlohmann::json{
         {"storage", storage_stats},
         {"metrics", {
             {"total_sessions_created", metrics.total_sessions_created},
@@ -421,6 +427,7 @@ nlohmann::json SessionManager::get_statistics() {
             {"metrics_interval_minutes", config_.metrics_interval.count()}
         }}
     };
+    return stats.dump();
 }
 
 SessionManager::Metrics SessionManager::get_metrics() const {
@@ -434,13 +441,12 @@ void SessionManager::reset_metrics() {
     metrics_ = Metrics{};
     metrics_.last_reset = std::chrono::system_clock::now();
     
-    fire_event("metrics_reset", nlohmann::json{
-        {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count()}
-    });
+    nlohmann::json reset_evt{{"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count()}};
+    fire_event("metrics_reset", reset_evt.dump());
 }
 
-void SessionManager::set_event_callback(std::function<void(const std::string&, const nlohmann::json&)> callback) {
+void SessionManager::set_event_callback(std::function<void(const std::string&, const std::string&)> callback) {
     std::lock_guard<std::mutex> lock(manager_mutex_);
     event_callback_ = std::move(callback);
 }
@@ -458,10 +464,9 @@ void SessionManager::shutdown() {
     
     initialized_ = false;
     
-    fire_event("manager_shutdown", nlohmann::json{
-        {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count()}
-    });
+    nlohmann::json shut_evt{{"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count()}};
+    fire_event("manager_shutdown", shut_evt.dump());
 }
 
 std::string SessionManager::generate_session_id() {
@@ -487,11 +492,11 @@ void SessionManager::update_metrics() {
     }
 }
 
-void SessionManager::fire_event(const std::string& event, const nlohmann::json& data) {
+void SessionManager::fire_event(const std::string& event, const std::string& data_json) {
     if (event_callback_) {
         try {
-            event_callback_(event, data);
-        } catch (const std::exception& e) {
+            event_callback_(event, data_json);
+        } catch (const std::exception&) {
             // Ignore callback exceptions to prevent affecting core functionality
         }
     }

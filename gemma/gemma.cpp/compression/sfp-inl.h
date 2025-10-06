@@ -22,6 +22,7 @@
 
 #include "compression/types.h"
 #include "hwy/base.h"
+// (Removed custom scalar fallback header; relying on Highway's native scalar implementation)
 
 #endif  // THIRD_PARTY_GEMMA_CPP_COMPRESSION_SFP_INL_H_
 

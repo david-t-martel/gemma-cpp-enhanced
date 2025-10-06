@@ -43,6 +43,8 @@ endfunction()
 
 # Backend compatibility tests
 add_gemma_integration_test(test_backends_integration test_backends.cpp)
+add_gemma_integration_test(test_system_lifecycle test_system_lifecycle.cpp)
+add_gemma_integration_test(test_session_workflow test_session_workflow.cpp)
 
 # Model loading integration tests
 add_gemma_integration_test(test_model_loading_integration test_model_loading.cpp)

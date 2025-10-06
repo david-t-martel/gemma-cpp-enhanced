@@ -22,8 +22,9 @@
 #include <memory>
 #include <optional>
 #include <functional>
+#include <cstdint>
 
-#include <nlohmann/json.hpp>
+#include <nlohmann/json.hpp> // Provided via nlohmann_json target (FetchContent if absent)
 
 namespace gcpp {
 namespace mcp {

@@ -1,0 +1,104 @@
+# MCP Gemma Client Configuration
+# This file configures clients for connecting to the MCP Gemma server
+
+# Default client settings
+default:
+  timeout: 30.0
+  debug: false
+  retry_count: 3
+  retry_delay: 1.0
+
+# Stdio client configuration
+stdio:
+  # Model path for local server startup
+  model_path: "/c/codedev/llm/.models/gemma2-2b-it-sfp.sbs"
+  tokenizer_path: "/c/codedev/llm/.models/tokenizer.spm"
+  gemma_executable: "/mnt/c/codedev/llm/gemma/gemma.cpp/build_wsl/gemma"
+
+  # Server script path
+  server_script: "../server/main.py"
+
+  # Additional server arguments
+  server_args:
+    debug: false
+    no_redis: false
+
+# HTTP client configuration
+http:
+  # Server URL
+  base_url: "http://localhost:8080"
+
+  # Connection settings
+  max_connections: 10
+  connection_timeout: 5.0
+
+  # Request settings
+  request_timeout: 30.0
+  max_retries: 3
+
+# WebSocket client configuration
+websocket:
+  # Server URL
+  url: "ws://localhost:8081"
+
+  # Connection settings
+  ping_interval: 30.0
+  ping_timeout: 10.0
+  reconnect_attempts: 5
+  reconnect_delay: 2.0
+
+  # Message settings
+  message_timeout: 30.0
+
+# Batch processing settings
+batch:
+  # Maximum concurrent requests
+  max_concurrent: 5
+
+  # Batch size for bulk operations
+  batch_size: 10
+
+  # Timeout for batch operations
+  batch_timeout: 300.0
+
+# Connection pool settings
+pool:
+  # Pool size for high-throughput scenarios
+  pool_size: 3
+
+  # Pool initialization timeout
+  init_timeout: 60.0
+
+  # Health check interval
+  health_check_interval: 30.0
+
+# Environment-specific configurations
+environments:
+  development:
+    default:
+      debug: true
+      timeout: 60.0
+    http:
+      base_url: "http://localhost:8080"
+    websocket:
+      url: "ws://localhost:8081"
+
+  production:
+    default:
+      debug: false
+      timeout: 30.0
+    http:
+      base_url: "http://gemma-server:8080"
+    websocket:
+      url: "ws://gemma-server:8081"
+    batch:
+      max_concurrent: 10
+
+  testing:
+    default:
+      debug: true
+      timeout: 10.0
+    http:
+      base_url: "http://localhost:8080"
+    websocket:
+      url: "ws://localhost:8081"

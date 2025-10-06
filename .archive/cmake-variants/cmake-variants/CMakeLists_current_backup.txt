@@ -1,0 +1,453 @@
+# Copyright 2019 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+cmake_minimum_required(VERSION 3.16)
+
+# Set policies for compatibility
+if(POLICY CMP0111)
+    cmake_policy(SET CMP0111 NEW)
+endif()
+if(POLICY CMP0127)
+    cmake_policy(SET CMP0127 NEW)
+endif()
+
+include(FetchContent)
+
+project(gemma)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Windows-specific optimizations
+if(WIN32)
+    # Use the native Windows threading instead of pthread
+    set(CMAKE_USE_WIN32_THREADS_INIT 1)
+    set(CMAKE_USE_PTHREADS_INIT 0)
+
+    # Set Windows-specific compile definitions
+    add_compile_definitions(
+        _CRT_SECURE_NO_WARNINGS
+        NOMINMAX
+        WIN32_LEAN_AND_MEAN
+        _WIN32_WINNT=0x0A00  # Windows 10+
+    )
+
+    # Enable multiprocessor compilation for faster builds
+    add_compile_options(/MP)
+
+    # Optimize for current architecture
+    add_compile_options(/arch:AVX2)
+
+    # Link-time optimizations for Release builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(/GL)
+        add_link_options(/LTCG)
+    endif()
+endif()
+
+# Include optimization module if available
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/GemmaOptimizations.cmake")
+    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
+    include(GemmaOptimizations)
+    setup_gemma_build_optimizations()
+    setup_build_profiles()
+endif()
+
+# Build optimization options
+option(GEMMA_ENABLE_UNITY_BUILDS "Enable unity builds for faster compilation" OFF)
+option(GEMMA_ENABLE_LTO "Enable Link Time Optimization" ON)
+option(GEMMA_ENABLE_PCH "Enable Precompiled Headers" OFF)  # Disabled for compatibility
+option(GEMMA_USE_SCALAR_FALLBACK "Use scalar fallbacks for SIMD operations" ON)
+
+# Fetch Highway with Windows compatibility fixes
+FetchContent_Declare(
+    highway
+    GIT_REPOSITORY https://github.com/google/highway.git
+    GIT_TAG 1d16731233de45a365b43867f27d0a5f73925300
+    EXCLUDE_FROM_ALL
+    PATCH_COMMAND ${CMAKE_COMMAND} -E echo "Applying Highway Windows compatibility"
+)
+
+# Configure Highway options for Windows compatibility
+set(HWY_ENABLE_TESTS OFF CACHE BOOL "Disable Highway tests" FORCE)
+set(HWY_ENABLE_EXAMPLES OFF CACHE BOOL "Disable Highway examples" FORCE)
+set(HWY_ENABLE_CONTRIB OFF CACHE BOOL "Disable Highway contrib initially" FORCE)
+
+FetchContent_MakeAvailable(highway)
+
+# Re-enable contrib after Highway is available
+set(HWY_ENABLE_CONTRIB ON CACHE BOOL "Enable Highway contrib" FORCE)
+
+## Note: absl needs to be installed by sentencepiece. This will only happen if
+## cmake is invoked with -DSPM_ENABLE_SHARED=OFF and -DSPM_ABSL_PROVIDER=module
+FetchContent_Declare(
+    sentencepiece
+    GIT_REPOSITORY https://github.com/google/sentencepiece
+    GIT_TAG 53de76561cfc149d3c01037f0595669ad32a5e7c
+    EXCLUDE_FROM_ALL
+    # Add CMake policy fix for sentencepiece
+    PATCH_COMMAND ${CMAKE_COMMAND} -E echo "Applying sentencepiece Windows compatibility"
+)
+
+# Configure sentencepiece for Windows
+set(SPM_ENABLE_SHARED OFF CACHE BOOL "Disable shared libraries" FORCE)
+set(SPM_ABSL_PROVIDER module CACHE STRING "Use absl from module" FORCE)
+set(SPM_ENABLE_TCMALLOC OFF CACHE BOOL "Disable tcmalloc" FORCE)
+set(SPM_ENABLE_TENSORFLOW_SHARED OFF CACHE BOOL "Disable TensorFlow" FORCE)
+
+# Temporarily set CMake policy for sentencepiece compatibility
+set(CMAKE_POLICY_DEFAULT_CMP0063 NEW)
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.5)
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
+
+FetchContent_MakeAvailable(sentencepiece)
+
+FetchContent_Declare(
+    json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG 9cca280a4d0ccf0c08f47a99aa71d1b0e52f8d03
+    EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(json)
+
+# Configure benchmark for Windows
+set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "Disable benchmark tests" FORCE)
+set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "Disable benchmark gtest" FORCE)
+set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "Disable benchmark install" FORCE)
+
+FetchContent_Declare(
+    benchmark
+    GIT_REPOSITORY https://github.com/google/benchmark.git
+    GIT_TAG v1.8.2
+    EXCLUDE_FROM_ALL
+)
+FetchContent_MakeAvailable(benchmark)
+
+# Base source files
+set(SOURCES
+  compression/compress-inl.h
+  compression/compress.cc
+  compression/compress.h
+  compression/nuq-inl.h
+  compression/sfp-inl.h
+  compression/types.h
+  compression/test_util-inl.h
+  evals/benchmark_helper.cc
+  evals/benchmark_helper.h
+  evals/cross_entropy.cc
+  evals/cross_entropy.h
+  gemma/activations.h
+  gemma/attention.cc
+  gemma/attention.h
+  gemma/configs.cc
+  gemma/configs.h
+  gemma/gemma_args.h
+  gemma/gemma-inl.h
+  gemma/gemma.cc
+  gemma/gemma.h
+  gemma/griffin.cc
+  gemma/griffin.h
+  gemma/kv_cache.cc
+  gemma/kv_cache.h
+  gemma/model_store.cc
+  gemma/model_store.h
+  gemma/tensor_info.cc
+  gemma/tensor_info.h
+  gemma/tokenizer.cc
+  gemma/tokenizer.h
+  gemma/vit.cc
+  gemma/vit.h
+  gemma/weights.cc
+  gemma/weights.h
+  io/blob_store.cc
+  io/blob_store.h
+  io/fields.cc
+  io/fields.h
+  io/io_win.cc
+  io/io.cc
+  io/io.h
+  ops/dot-inl.h
+  ops/dry_penalty.cc
+  ops/dry_penalty.h
+  ops/matmul_static_bf16.cc
+  ops/matmul_static_f32.cc
+  ops/matmul_static_nuq.cc
+  ops/matmul_static_sfp.cc
+  ops/matmul-inl.h
+  ops/matmul.cc
+  ops/matmul.h
+  ops/matvec-inl.h
+  ops/ops-inl.h
+  ops/ops.h
+  ops/sum-inl.h
+  paligemma/image.cc
+  paligemma/image.h
+  util/allocator.cc
+  util/allocator.h
+  util/basics.h
+  util/mat.cc
+  util/mat.h
+  util/test_util.h
+  util/threading_context.cc
+  util/threading_context.h
+  util/threading.cc
+  util/threading.h
+  util/topology.cc
+  util/topology.h
+)
+
+# Add scalar fallback header if enabled
+if(GEMMA_USE_SCALAR_FALLBACK)
+    list(APPEND SOURCES highway_scalar_fallback.h)
+endif()
+
+# Add C API sources only when building DLL
+if(BUILD_GEMMA_DLL)
+  list(APPEND SOURCES
+    gemma/bindings/context.h
+    gemma/bindings/context.cc
+    gemma/bindings/c_api.h
+    gemma/bindings/c_api.cc
+  )
+  message(STATUS "Including C API files for DLL build")
+endif()
+
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+FetchContent_GetProperties(sentencepiece)
+
+## Library Target
+
+add_library(libgemma ${SOURCES})
+set_property(TARGET libgemma PROPERTY CXX_STANDARD 20)
+set_target_properties(libgemma PROPERTIES PREFIX "")
+set_property(TARGET libgemma PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+# Include directories
+target_include_directories(libgemma PUBLIC ./)
+target_include_directories(libgemma PUBLIC ${sentencepiece_SOURCE_DIR})
+
+# Link libraries with proper error handling
+target_link_libraries(libgemma PRIVATE hwy)
+
+# Only link hwy_contrib if it exists
+if(TARGET hwy_contrib)
+    target_link_libraries(libgemma PRIVATE hwy_contrib)
+else()
+    message(WARNING "hwy_contrib target not found, linking only hwy")
+endif()
+
+target_link_libraries(libgemma PRIVATE sentencepiece-static)
+
+# Windows-specific compile definitions
+if(WIN32)
+    target_compile_definitions(libgemma PRIVATE
+        _CRT_SECURE_NO_WARNINGS
+        NOMINMAX
+        WIN32_LEAN_AND_MEAN
+    )
+
+    # Windows-specific compile options for Clang
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(libgemma PRIVATE -Wno-deprecated-declarations)
+    endif()
+endif()
+
+# Add scalar fallback support
+if(GEMMA_USE_SCALAR_FALLBACK)
+    target_compile_definitions(libgemma PRIVATE GEMMA_USE_SCALAR_FALLBACK)
+    target_include_directories(libgemma PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
+# Apply optimizations if available
+if(COMMAND apply_gemma_optimizations)
+    apply_gemma_optimizations(libgemma)
+endif()
+
+# Apply Intel-specific optimizations if using Intel compiler
+if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM|Intel")
+    if(COMMAND apply_intel_optimizations)
+        apply_intel_optimizations(libgemma)
+    endif()
+endif()
+
+install(TARGETS libgemma DESTINATION lib)
+
+# Shared library target for C# interop
+if(BUILD_GEMMA_DLL)
+    add_library(gemma_shared SHARED ${SOURCES})
+    set_property(TARGET gemma_shared PROPERTY CXX_STANDARD 20)
+    set_target_properties(gemma_shared PROPERTIES
+        PREFIX ""
+        OUTPUT_NAME "gemma"
+    )
+    set_property(TARGET gemma_shared PROPERTY POSITION_INDEPENDENT_CODE ON)
+    target_include_directories(gemma_shared PUBLIC ./)
+    target_include_directories(gemma_shared PUBLIC ${sentencepiece_SOURCE_DIR})
+
+    # Windows-specific linking for shared library
+    if(WIN32)
+        target_link_libraries(gemma_shared PRIVATE
+            hwy
+            sentencepiece-static
+        )
+        if(TARGET hwy_contrib)
+            target_link_libraries(gemma_shared PRIVATE hwy_contrib)
+        endif()
+    else()
+        target_link_libraries(gemma_shared PRIVATE
+            $<LINK_LIBRARY:WHOLE_ARCHIVE,hwy>
+            $<LINK_LIBRARY:WHOLE_ARCHIVE,sentencepiece-static>
+        )
+        if(TARGET hwy_contrib)
+            target_link_libraries(gemma_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,hwy_contrib>)
+        endif()
+    endif()
+
+    target_compile_definitions(gemma_shared
+        PRIVATE
+        GEMMA_EXPORTS
+        $<$<PLATFORM_ID:Windows>:_CRT_SECURE_NO_WARNINGS NOMINMAX>
+    )
+
+    if(WIN32 AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(gemma_shared PRIVATE -Wno-deprecated-declarations)
+    endif()
+
+    install(TARGETS gemma_shared DESTINATION lib)
+    install(FILES gemma/c_api.h DESTINATION include/gemma)
+    # Install C# file if it exists
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/gemma/GemmaInterop.cs")
+        install(FILES gemma/GemmaInterop.cs DESTINATION include/gemma)
+    endif()
+endif()
+
+# Executable Target
+
+add_executable(gemma gemma/run.cc)
+target_link_libraries(gemma PRIVATE libgemma hwy)
+if(TARGET hwy_contrib)
+    target_link_libraries(gemma PRIVATE hwy_contrib)
+endif()
+
+if(COMMAND apply_gemma_optimizations)
+    apply_gemma_optimizations(gemma)
+endif()
+
+install(TARGETS gemma DESTINATION bin)
+
+# Benchmark executables
+add_executable(single_benchmark evals/benchmark.cc)
+target_link_libraries(single_benchmark PRIVATE libgemma hwy nlohmann_json::nlohmann_json)
+if(TARGET hwy_contrib)
+    target_link_libraries(single_benchmark PRIVATE hwy_contrib)
+endif()
+
+add_executable(benchmarks evals/benchmarks.cc)
+target_link_libraries(benchmarks PRIVATE libgemma hwy nlohmann_json::nlohmann_json benchmark)
+if(TARGET hwy_contrib)
+    target_link_libraries(benchmarks PRIVATE hwy_contrib)
+endif()
+
+add_executable(debug_prompt evals/debug_prompt.cc)
+target_link_libraries(debug_prompt PRIVATE libgemma hwy nlohmann_json::nlohmann_json)
+if(TARGET hwy_contrib)
+    target_link_libraries(debug_prompt PRIVATE hwy_contrib)
+endif()
+
+## Tests
+set(GEMMA_ENABLE_TESTS OFF CACHE BOOL "Enable Gemma tests")
+if (GEMMA_ENABLE_TESTS)
+
+enable_testing()
+include(GoogleTest)
+
+set(GEMMA_TEST_FILES
+  compression/compress_test.cc
+  compression/distortion_test.cc
+  compression/nuq_test.cc
+  compression/sfp_test.cc
+  evals/gemma_test.cc
+  gemma/tensor_info_test.cc
+  io/blob_store_test.cc
+  io/fields_test.cc
+  ops/bench_matmul.cc
+  ops/dot_test.cc
+  ops/gemma_matvec_test.cc
+  ops/matmul_test.cc
+  ops/ops_test.cc
+  paligemma/image_test.cc
+  paligemma/paligemma_test.cc
+  util/threading_test.cc
+)
+
+foreach (TESTFILE IN LISTS GEMMA_TEST_FILES)
+  # The TESTNAME is the name without the extension or directory.
+  get_filename_component(TESTNAME ${TESTFILE} NAME_WE)
+  add_executable(${TESTNAME} ${TESTFILE})
+  # Test all targets, not just the best/baseline. This changes the default
+  # policy to all-attainable; note that setting -DHWY_COMPILE_* directly can
+  # cause compile errors because only one may be set, and other CMakeLists.txt
+  # that include us may set them.
+  target_compile_options(${TESTNAME} PRIVATE -DHWY_IS_TEST=1)
+
+  target_link_libraries(${TESTNAME} PRIVATE libgemma GTest::Main hwy hwy_test)
+  if(TARGET hwy_contrib)
+      target_link_libraries(${TESTNAME} PRIVATE hwy_contrib)
+  endif()
+
+  gtest_discover_tests(${TESTNAME})
+endforeach ()
+
+add_executable(gemma_batch_bench evals/gemma_batch_bench.cc)
+target_link_libraries(gemma_batch_bench PRIVATE libgemma GTest::Main hwy nlohmann_json::nlohmann_json)
+if(TARGET hwy_contrib)
+    target_link_libraries(gemma_batch_bench PRIVATE hwy_contrib)
+endif()
+
+endif()  # GEMMA_ENABLE_TESTS
+
+## Enhanced Testing Framework
+# Option to enable the comprehensive test suite
+option(GEMMA_ENABLE_ENHANCED_TESTS "Enable enhanced testing framework with unit, integration, and performance tests" OFF)
+
+if(GEMMA_ENABLE_ENHANCED_TESTS)
+    message(STATUS "Enhanced testing framework enabled")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../tests")
+        add_subdirectory(../tests tests_build)
+    endif()
+endif()
+
+## Tools
+
+add_executable(migrate_weights io/migrate_weights.cc)
+target_link_libraries(migrate_weights PRIVATE libgemma hwy)
+if(TARGET hwy_contrib)
+    target_link_libraries(migrate_weights PRIVATE hwy_contrib)
+endif()
+
+# Status message
+message(STATUS "=== Gemma.cpp Windows Optimized Build Configuration Complete ===")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "CXX Standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "Scalar fallback: ${GEMMA_USE_SCALAR_FALLBACK}")
+if(WIN32)
+    message(STATUS "Windows optimizations: ENABLED")
+    message(STATUS "Multiprocessor compilation: ENABLED")
+    message(STATUS "Architecture: AVX2")
+endif()

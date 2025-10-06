@@ -1,258 +1,12 @@
-<<<<<<< HEAD
+gemma.cpp/nul
+dist/
+## Consolidated .gitignore (merged and cleaned)
+
+# Core build outputs
 gemma.cpp/build*/
 gemma.cpp/nul
-
-# Explicitly include .github (overrides user/global ignore that hides it)
-!/.github/
-
-# -----------------------------
-# Added ignore patterns (2025-09-17)
-# -----------------------------
-
-# CMake bundled distribution docs (very large, regenerated / downloadable)
-gemma.cpp/cmake-*/
-
-# Local build/test byproducts (root-level helpers that may appear)
 build/
 dist/
-*.cache/
-
-# Python artifacts
-__pycache__/
-*.pyc
-
-# Logs & profiling output
-*.log
-server.log
-
-# Temporary / backup / scratch
-*.backup
-run_gemma.bat.backup
-temp_file.bat
-*.tmp
-*.swp
-*.swo
-
-# Editor / IDE metadata
-.vscode/
-.idea/
-
-# OS metadata
-.DS_Store
-Thumbs.db
-
-# AI assistant context / transient tooling
-.claude/
-
-# Model weights & large ML artifacts (do NOT commit weights/tokenizers)
-*.sbs
-*.spm
-*.gguf
-*.pt
-*.pth
-*.onnx
-
-# Binary build outputs (comment out if intentionally tracked)
-*.exe
-*.dll
-*.pdb
-*.lib
-*.so
-*.dylib
-
-# Archive bundles
-*.tar
-*.tar.gz
-*.zip
-*.7z
-*.rar
-
-# Coverage / test reports
-coverage/
-*.lcov
-
-# Wheel / packaging
-*.whl
-*.egg-info/
-
-# Node (if any JS tooling is introduced later)
-node_modules/
-
-# Notebook checkpoints
-.ipynb_checkpoints/
-
-# Optional: uncomment to ignore all local scripts starting with temp_
-# temp_*
-
-# -----------------------------
-# Enhanced Gemma.cpp ignore patterns
-# -----------------------------
-
-# New component build outputs
-mcp/build/
-backends/build/
-tests/build/
-
-# MCP server runtime files
-mcp/logs/
-mcp/config/local_*.json
-mcp/temp/
-mcp/pid/
-
-# Backend-specific files
-backends/cuda/ptx/
-backends/opencl/kernels/*.bin
-backends/vulkan/spirv/
-backends/metal/*.metallib
-
-# Test artifacts
-tests/results/
-tests/coverage/
-tests/temp/
-tests/*.xml
-tests/*.json
-
-# Documentation build outputs
-docs/build/
-docs/html/
-docs/latex/
-docs/_build/
-
-# Performance profiling
-*.nvprof
-*.prof
-*.trace
-*.timeline
-
-# Hardware-specific cache files
-*.cubin
-*.fatbin
-*.cl_cache/
-
-# CMake enhanced build directories
-cmake-build-*/
-build-mcp-test/
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-
-# IDE project files
-*.vcxproj*
-*.sln
-*.pro
-*.xcworkspace/
-*.xcodeproj/
-
-# Package manager files
-conan*/
-vcpkg*/
-
-# Enhanced temporary files
-*.pid
-*.sock
-*.fifo
-||||||| empty tree
-=======
-gemma.cpp/build*/
-gemma.cpp/nul
-
-# Explicitly include .github (overrides user/global ignore that hides it)
-!/.github/
-
-# -----------------------------
-# Added ignore patterns (2025-09-17)
-# -----------------------------
-
-# CMake bundled distribution docs (very large, regenerated / downloadable)
-gemma.cpp/cmake-*/
-
-# Local build/test byproducts (root-level helpers that may appear)
-build/
-dist/
-*.cache/
-
-# Python artifacts
-__pycache__/
-*.pyc
-
-# Logs & profiling output
-*.log
-server.log
-
-# Temporary / backup / scratch
-*.backup
-run_gemma.bat.backup
-temp_file.bat
-*.tmp
-*.swp
-*.swo
-
-# Editor / IDE metadata
-.vscode/
-.idea/
-
-# OS metadata
-.DS_Store
-Thumbs.db
-
-# AI assistant context / transient tooling
-.claude/
-
-# Model weights & large ML artifacts (do NOT commit weights/tokenizers)
-*.sbs
-*.spm
-*.gguf
-*.pt
-*.pth
-*.onnx
-
-# Binary build outputs (comment out if intentionally tracked)
-*.exe
-*.dll
-*.pdb
-*.lib
-*.so
-*.dylib
-
-# Archive bundles
-*.tar
-*.tar.gz
-*.zip
-*.7z
-*.rar
-
-# Coverage / test reports
-coverage/
-*.lcov
-
-# Wheel / packaging
-*.whl
-*.egg-info/
-
-# Node (if any JS tooling is introduced later)
-node_modules/
-
-# Notebook checkpoints
-.ipynb_checkpoints/
-
-# Optional: uncomment to ignore all local scripts starting with temp_
-# temp_*
-
-# Enhanced Gemma.cpp ignore patterns for Modular Architecture
-# -----------------------------
-
-# =============================================================================
-# BUILD OUTPUTS & ARTIFACTS
-# =============================================================================
-
-# Core component build outputs
-gemma/build/
-mcp/build/
-backends/build/
-tests/build/
-tools/build/
-
-# CMake build directories (all variants)
 cmake-build-*/
 build-*/
 CMakeFiles/
@@ -260,256 +14,76 @@ CMakeCache.txt
 cmake_install.cmake
 install_manifest.txt
 
-# Platform-specific build outputs
-win32/
-x64/
-Release/
-Debug/
-RelWithDebInfo/
-MinSizeRel/
+# Prevent any binaries in source directories
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+!third_party/**/*.dll
+!third_party/**/*.so
+!third_party/**/*.dylib
+!third_party/**/*.a
+!third_party/**/*.lib
 
-# Generated CMake files
-*Config.cmake
-*ConfigVersion.cmake
-*Targets.cmake
-*Exports.cmake
+# Explicitly include GitHub workflows directory
+!/.github/
 
-# =============================================================================
-# RUNTIME & DEPLOYMENT FILES
-# =============================================================================
+# Allow tracking of VS Code tasks while ignoring the rest of the folder
+# VS Code: ignore all under .vscode except tasks.json (tracked)
+.vscode/*
+!/.vscode/tasks.json
 
-# MCP server runtime files
-mcp/logs/
-mcp/config/local_*.json
-mcp/config/development_*.json
-mcp/temp/
-mcp/pid/
-mcp/sockets/
+# IDE / editor folders
+.idea/
+.vs/
 
-# Application data
-data/cache/
-data/logs/
-data/temp/
-runtime/
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
 
-# Configuration overrides
-config/local_*.yaml
-config/development_*.yaml
-config/*_override.*
+# Node / JS (future-proof)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# =============================================================================
-# HARDWARE ACCELERATION ARTIFACTS
-# =============================================================================
-
-# CUDA artifacts
-backends/cuda/build/
-backends/cuda/ptx/
-*.cubin
-*.fatbin
-*.cu.cache
-nvcc_tmp*
-
-# SYCL/oneAPI artifacts
-backends/sycl/build/
-*.sycl_cache/
-intel_compiler_*/
-
-# Vulkan artifacts
-backends/vulkan/build/
-backends/vulkan/spirv/
-*.spv
-
-# OpenCL artifacts
-backends/opencl/build/
-backends/opencl/kernels/*.bin
-*.cl_cache/
-
-# Metal artifacts (macOS)
-backends/metal/build/
-*.metallib
-*.air
-
-# =============================================================================
-# TESTING & DEVELOPMENT
-# =============================================================================
-
-# Test artifacts
-tests/results/
-tests/coverage/
-tests/temp/
-tests/reports/
-tests/output/
-*.xml
-*.junit
-coverage.info
-*.gcda
-*.gcno
-
-# Performance profiling
-*.nvprof
+# Logs / profiling
+logs/
+*.log
+server.log
+debug.log
+error.log
 *.prof
+*.nvprof
 *.trace
 *.timeline
 perf.data*
 callgrind.out*
 *.qdrep
 
-# Benchmark results
-benchmarks/results/
-benchmarks/output/
-*.benchmark
-
-# =============================================================================
-# DOCUMENTATION & ASSETS
-# =============================================================================
-
-# Documentation build outputs
-docs/build/
-docs/html/
-docs/latex/
-docs/_build/
-docs/generated/
-site/
-
-# Doxygen outputs
-doxygen_output/
-html/
-latex/
-
-# =============================================================================
-# DEVELOPMENT TOOLS & IDE
-# =============================================================================
-
-# Visual Studio files
-*.vcxproj*
-*.sln
-*.suo
-*.user
-*.aps
-*.pch
-*.vspscc
-*.vssscc
-.vscode/
-.vs/
-
-# CLion / IntelliJ
-.idea/
-cmake-build-*/
-
-# Xcode
-*.xcworkspace/
-*.xcodeproj/
-DerivedData/
-
-# Qt Creator
-*.pro.user*
-CMakeLists.txt.user*
-
-# Code::Blocks
-*.cbp
-*.layout
-*.depend
-
-# =============================================================================
-# PACKAGE MANAGERS & DEPENDENCIES
-# =============================================================================
-
-# vcpkg
-vcpkg_installed/
-.vcpkg-root
-vcpkg_*/
-
-# Conan
-conan*/
-conanbuild/
-conandata.yml
-conanfile.py
-
-# Hunter
-_builds/
-_install/
-
-# =============================================================================
-# LANGUAGE SPECIFIC
-# =============================================================================
-
-# Python artifacts (for tooling/scripts)
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-*.egg-info/
-dist/
-build/
-.eggs/
-
-# Node.js artifacts (for tooling)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-package-lock.json
-
-# Rust artifacts (for tooling)
-target/
-Cargo.lock
-**/*.rs.bk
-
-# =============================================================================
-# SYSTEM & RUNTIME
-# =============================================================================
-
-# Logs
-logs/
-*.log
-server.log
-debug.log
-error.log
-
-# Process files
-*.pid
-*.sock
-*.fifo
-*.lock
-
-# Environment files
-.env
-.env.local
-.env.development
-.env.production
-.env.test
-
-# =============================================================================
-# TEMPORARY & BACKUP FILES
-# =============================================================================
-
-# Temporary files
+# Temporary / backup
 *.tmp
 *.temp
 *.swp
 *.swo
 *~
 .#*
-.DS_Store
-Thumbs.db
-
-# Backup files
 *.backup
 *.bak
 *.orig
 *.save
 
-# =============================================================================
-# MODEL FILES & LARGE ASSETS
-# =============================================================================
+# OS metadata
+.DS_Store
+Thumbs.db
 
-# Model weights & tokenizers (NEVER commit these)
+# Model / large ML assets (never commit)
 *.sbs
 *.spm
 *.gguf
@@ -521,56 +95,126 @@ models/
 weights/
 tokenizers/
 
-# Large test files
-*.bin
-*.dat
-large_test_files/
+# Archives / packages
+*.tar
+*.tar.gz
+*.zip
+*.7z
+*.rar
+*.whl
 
-# =============================================================================
-# DEPLOYMENT & PRODUCTION
-# =============================================================================
+# Coverage / test reports
+coverage/
+*.lcov
+*.gcda
+*.gcno
+coverage.info
+tests/results/
+tests/coverage/
+tests/temp/
+tests/reports/
+tests/output/
+*.junit
+*.xml
 
-# Docker artifacts
-.dockerignore
-Dockerfile.local
-docker-compose.override.yml
+# Backend specific build artifacts
+backends/build/
+backends/cuda/build/
+backends/cuda/ptx/
+backends/vulkan/build/
+backends/vulkan/spirv/
+backends/opencl/build/
+backends/opencl/kernels/*.bin
+backends/sycl/build/
+backends/metal/build/
+*.cubin
+*.fatbin
+*.cl_cache/
+*.metallib
+*.air
+*.spv
+*.cu.cache
+nvcc_tmp*
 
-# CI/CD artifacts
-.github/workflows/local_*
-.github/environments/local_*
+# MCP & tools build outputs
+mcp/build/
+tools/build/
 
-# Deployment configs
-deploy/local_*
-deploy/staging_*
-.deploy/
+# Runtime / app data
+mcp/logs/
+mcp/temp/
+mcp/pid/
+mcp/sockets/
+data/cache/
+data/logs/
+data/temp/
+runtime/
 
-# =============================================================================
-# TASK MASTER & PROJECT MANAGEMENT
-# =============================================================================
+# Config overrides
+config/local_*.yaml
+config/development_*.yaml
+config/*_override.*
+mcp/config/local_*.json
+mcp/config/development_*.json
 
-# Task Master files (keep .taskmaster/ structure but ignore temp files)
+# Environment files
+.env
+.env.*
+
+# Package manager (vcpkg / conan / hunter)
+vcpkg_installed/
+.vcpkg-root
+vcpkg_*/
+conan*/
+conanbuild/
+conandata.yml
+conanfile.py
+_builds/
+_install/
+
+# Documentation build outputs
+docs/build/
+docs/html/
+docs/latex/
+docs/_build/
+docs/generated/
+site/
+doxygen_output/
+html/
+latex/
+
+# Task / project management temp files
 .taskmaster/state.json
 .taskmaster/temp/
 .taskmaster/cache/
 .taskmaster/logs/
-
-# Project management temp files
 tasks_backup_*.json
 tasks_temp_*.json
 
-# =============================================================================
-# SAFETY PATTERNS (CATCH-ALL)
-# =============================================================================
-
-# Any local_* or temp_* files
+# Safety / catch-all patterns
 local_*
 temp_*
 tmp_*
-
-# Any files ending in .local
 *.local
-
-# Any directories ending in _temp
 *_temp/
 *_tmp/
->>>>>>> clean-refactor-branch
+
+# Additional ignores to reduce editor file watching load
+third_party/**/build/
+third_party/**/bin/
+third_party/**/lib/
+third_party/**/.cache/
+**/.cmake/api/*
+**/.cache/**
+compile_commands.json
+compile_commands-full.json
+**/CMakeUserPresets.json
+**/.clangd/
+**/.ruff_cache/
+**/.pytest_cache/
+**/.ninja_log
+**/.ninja_deps
+**/Testing/Temporary/
+**/Testing/**/CTestCostData.txt
+**/Testing/**/LastTest.log
+

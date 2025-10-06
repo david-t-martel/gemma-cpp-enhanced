@@ -1,6 +1,9 @@
 [workspace]
 members = [
     "rust_extensions",
+    "rag-redis-system",
+    "rag-redis-system/mcp-server",
+    "rag-redis-system/mcp-native",
     # TODO: Fix and re-enable other workspace members
     # "rust_core/inference",
     # "rust_core/server",

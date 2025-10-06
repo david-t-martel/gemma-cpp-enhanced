@@ -1,0 +1,337 @@
+{
+  "mcpServers": {
+    "mcp-gemma": {
+      "command": "python",
+      "args": [
+        "C:\\codedev\\llm\\mcp-gemma\\server\\consolidated_server.py",
+        "--model",
+        "C:\\codedev\\llm\\.models\\gemma2-2b-it-sfp.sbs",
+        "--tokenizer",
+        "C:\\codedev\\llm\\.models\\tokenizer.spm",
+        "--mode",
+        "stdio",
+        "--enable-cache",
+        "--max-concurrent",
+        "10"
+      ],
+      "env": {
+        "PYTHONPATH": "C:\\codedev\\llm\\mcp-gemma;C:\\codedev\\llm\\stats",
+        "GEMMA_MODEL_PATH": "C:\\codedev\\llm\\.models",
+        "REDIS_URL": "redis://localhost:6379",
+        "ENABLE_RAG": "true",
+        "LOG_LEVEL": "INFO"
+      },
+      "metadata": {
+        "name": "Gemma MCP Server",
+        "version": "1.0.0",
+        "description": "High-performance MCP server for Gemma LLM with RAG and memory management",
+        "author": "LLM Development Team"
+      }
+    },
+    "mcp-gemma-cpp": {
+      "command": "C:\\codedev\\llm\\mcp-gemma\\cpp-server\\build\\Release\\gemma_mcp_server.exe",
+      "args": [
+        "--model",
+        "C:\\codedev\\llm\\.models\\gemma2-2b-it-sfp.sbs",
+        "--tokenizer",
+        "C:\\codedev\\llm\\.models\\tokenizer.spm",
+        "--stdio",
+        "--threads",
+        "8"
+      ],
+      "env": {
+        "GEMMA_MODEL_PATH": "C:\\codedev\\llm\\.models"
+      },
+      "metadata": {
+        "name": "Gemma C++ MCP Server",
+        "version": "1.0.0",
+        "description": "Native C++ MCP server for maximum performance",
+        "author": "LLM Development Team"
+      }
+    },
+    "mcp-gemma-http": {
+      "command": "python",
+      "args": [
+        "C:\\codedev\\llm\\mcp-gemma\\server\\consolidated_server.py",
+        "--model",
+        "C:\\codedev\\llm\\.models\\gemma2-2b-it-sfp.sbs",
+        "--tokenizer",
+        "C:\\codedev\\llm\\.models\\tokenizer.spm",
+        "--mode",
+        "http",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8080",
+        "--enable-cors"
+      ],
+      "env": {
+        "PYTHONPATH": "C:\\codedev\\llm\\mcp-gemma;C:\\codedev\\llm\\stats",
+        "GEMMA_MODEL_PATH": "C:\\codedev\\llm\\.models",
+        "REDIS_URL": "redis://localhost:6379",
+        "ENABLE_RAG": "true",
+        "LOG_LEVEL": "INFO"
+      },
+      "metadata": {
+        "name": "Gemma HTTP API Server",
+        "version": "1.0.0",
+        "description": "RESTful HTTP API for Gemma LLM",
+        "author": "LLM Development Team",
+        "endpoints": [
+          "http://localhost:8080/generate",
+          "http://localhost:8080/chat",
+          "http://localhost:8080/stream",
+          "http://localhost:8080/models",
+          "http://localhost:8080/memory",
+          "http://localhost:8080/health"
+        ]
+      }
+    },
+    "mcp-gemma-websocket": {
+      "command": "python",
+      "args": [
+        "C:\\codedev\\llm\\mcp-gemma\\server\\consolidated_server.py",
+        "--model",
+        "C:\\codedev\\llm\\.models\\gemma2-2b-it-sfp.sbs",
+        "--tokenizer",
+        "C:\\codedev\\llm\\.models\\tokenizer.spm",
+        "--mode",
+        "websocket",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8081",
+        "--enable-streaming"
+      ],
+      "env": {
+        "PYTHONPATH": "C:\\codedev\\llm\\mcp-gemma;C:\\codedev\\llm\\stats",
+        "GEMMA_MODEL_PATH": "C:\\codedev\\llm\\.models",
+        "REDIS_URL": "redis://localhost:6379",
+        "ENABLE_RAG": "true",
+        "LOG_LEVEL": "INFO"
+      },
+      "metadata": {
+        "name": "Gemma WebSocket Server",
+        "version": "1.0.0",
+        "description": "Real-time WebSocket server with streaming support",
+        "author": "LLM Development Team",
+        "endpoint": "ws://localhost:8081"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "gemma_generate",
+      "description": "Generate text using Gemma model",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "Input prompt for text generation"
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "Maximum number of tokens to generate",
+            "default": 256
+          },
+          "temperature": {
+            "type": "number",
+            "description": "Sampling temperature (0.0-2.0)",
+            "default": 0.7
+          },
+          "top_p": {
+            "type": "number",
+            "description": "Top-p sampling parameter",
+            "default": 0.9
+          },
+          "stream": {
+            "type": "boolean",
+            "description": "Enable token streaming",
+            "default": false
+          }
+        },
+        "required": ["prompt"]
+      }
+    },
+    {
+      "name": "gemma_chat",
+      "description": "Interactive chat with conversation management",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "User message"
+          },
+          "conversation_id": {
+            "type": "string",
+            "description": "Conversation ID for context management"
+          },
+          "system_prompt": {
+            "type": "string",
+            "description": "System prompt to set behavior"
+          }
+        },
+        "required": ["message"]
+      }
+    },
+    {
+      "name": "gemma_embed",
+      "description": "Generate embeddings for text",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to embed"
+          },
+          "normalize": {
+            "type": "boolean",
+            "description": "Normalize embeddings",
+            "default": true
+          }
+        },
+        "required": ["text"]
+      }
+    },
+    {
+      "name": "gemma_memory_store",
+      "description": "Store information in RAG memory system",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Content to store"
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Additional metadata"
+          },
+          "tier": {
+            "type": "string",
+            "enum": ["working", "short_term", "long_term", "episodic", "semantic"],
+            "description": "Memory tier for storage"
+          }
+        },
+        "required": ["content"]
+      }
+    },
+    {
+      "name": "gemma_memory_search",
+      "description": "Search RAG memory system",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query"
+          },
+          "tier": {
+            "type": "string",
+            "enum": ["working", "short_term", "long_term", "episodic", "semantic", "all"],
+            "description": "Memory tier to search",
+            "default": "all"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum results",
+            "default": 10
+          }
+        },
+        "required": ["query"]
+      }
+    }
+  ],
+  "resources": [
+    {
+      "uri": "gemma://models",
+      "name": "Available Models",
+      "description": "List of available Gemma models",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "gemma://status",
+      "name": "Server Status",
+      "description": "Current server status and metrics",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "gemma://conversations",
+      "name": "Conversations",
+      "description": "Active conversation sessions",
+      "mimeType": "application/json"
+    }
+  ],
+  "prompts": [
+    {
+      "name": "code_generation",
+      "description": "Optimized prompt for code generation",
+      "arguments": [
+        {
+          "name": "language",
+          "description": "Programming language",
+          "required": true
+        },
+        {
+          "name": "task",
+          "description": "Code generation task",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "creative_writing",
+      "description": "Prompt for creative writing tasks",
+      "arguments": [
+        {
+          "name": "genre",
+          "description": "Writing genre",
+          "required": false
+        },
+        {
+          "name": "style",
+          "description": "Writing style",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "capabilities": {
+    "streaming": true,
+    "conversation_management": true,
+    "memory_storage": true,
+    "vector_search": true,
+    "multi_modal": false,
+    "batch_processing": true,
+    "fine_tuning": false,
+    "transports": ["stdio", "http", "websocket"],
+    "models": [
+      {
+        "id": "gemma2-2b-it",
+        "name": "Gemma 2B Instruct",
+        "size": "2.5GB",
+        "context_length": 8192,
+        "recommended": true
+      },
+      {
+        "id": "gemma2-9b-it",
+        "name": "Gemma 9B Instruct",
+        "size": "10GB",
+        "context_length": 8192,
+        "recommended": false
+      }
+    ]
+  },
+  "configuration": {
+    "default_model": "gemma2-2b-it-sfp.sbs",
+    "cache_enabled": true,
+    "cache_ttl": 3600,
+    "max_concurrent_requests": 10,
+    "request_timeout": 300,
+    "log_level": "INFO",
+    "health_check_interval": 30,
+    "auto_reload": false
+  }
+}

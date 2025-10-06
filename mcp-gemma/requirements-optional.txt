@@ -1,0 +1,36 @@
+# Optional dependencies for enhanced MCP Gemma features
+
+# Enhanced RAG and vector search
+faiss-cpu>=1.7.0          # For vector similarity search
+chromadb>=0.4.0           # Alternative vector database
+pinecone-client>=2.2.0    # Cloud vector database
+
+# Advanced text processing
+spacy>=3.5.0              # For NLP processing
+transformers>=4.30.0      # For additional model support
+torch>=2.0.0              # For PyTorch models
+
+# Monitoring and observability
+opentelemetry-api>=1.15.0
+opentelemetry-sdk>=1.15.0
+opentelemetry-instrumentation-aiohttp-client>=0.36b0
+
+# Security enhancements
+cryptography>=3.4.0
+passlib>=1.7.0
+python-jose>=3.3.0
+
+# Performance optimizations
+orjson>=3.8.0            # Faster JSON processing
+msgpack>=1.0.0           # Efficient serialization
+lz4>=4.0.0               # Fast compression
+
+# Development tools
+black>=23.0.0
+ruff>=0.0.250
+mypy>=1.0.0
+pre-commit>=3.0.0
+
+# Documentation
+sphinx>=6.0.0
+sphinx-rtd-theme>=1.2.0

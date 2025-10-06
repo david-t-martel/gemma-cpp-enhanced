@@ -1,0 +1,9 @@
+# Temporary CMakeLists.txt modification instructions
+#
+# To exclude griffin.cc from the build temporarily:
+# 1. Edit CMakeLists.txt
+# 2. Comment out line 64: gemma/griffin.cc
+# 3. Comment out line 65: gemma/griffin.h
+#
+# Or use this command to create a modified version:
+# sed 's|gemma/griffin.cc|#gemma/griffin.cc|; s|gemma/griffin.h|#gemma/griffin.h|' CMakeLists.txt > CMakeLists_modified.txt

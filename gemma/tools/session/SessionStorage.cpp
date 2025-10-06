@@ -1,88 +1,18 @@
 #include "SessionStorage.h"
+#include "lru_cache.h"
+#include "Session.h" // for serialize_session declarations
+#include <string>
 #include <sqlite3.h>
+#if __has_include(<nlohmann/json.hpp>)
+    #include <nlohmann/json.hpp>
+#else
+    #include "../../third_party/nlohmann_json/single_include/nlohmann/json.hpp"
+#endif
 #include <fstream>
-#include <sstream>
-#include <algorithm>
-#include <stdexcept>
+#include "sqlite_statement.h"
 
 namespace gemma {
 namespace session {
-
-// LRUCache implementation
-LRUCache::LRUCache(size_t capacity) : capacity_(capacity) {
-    if (capacity_ == 0) {
-        throw std::invalid_argument("Cache capacity must be greater than 0");
-    }
-}
-
-std::shared_ptr<Session> LRUCache::get(const std::string& session_id) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    auto it = cache_map_.find(session_id);
-    if (it == cache_map_.end()) {
-        return nullptr;
-    }
-    
-    // Move accessed item to front
-    auto list_it = it->second;
-    cache_list_.splice(cache_list_.begin(), cache_list_, list_it);
-    
-    return list_it->session;
-}
-
-void LRUCache::put(const std::string& session_id, std::shared_ptr<Session> session) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    auto it = cache_map_.find(session_id);
-    if (it != cache_map_.end()) {
-        // Update existing entry
-        auto list_it = it->second;
-        list_it->session = session;
-        cache_list_.splice(cache_list_.begin(), cache_list_, list_it);
-        return;
-    }
-    
-    // Add new entry
-    if (cache_list_.size() >= capacity_) {
-        evict();
-    }
-    
-    cache_list_.emplace_front(CacheNode{session_id, session});
-    cache_map_[session_id] = cache_list_.begin();
-}
-
-void LRUCache::remove(const std::string& session_id) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    auto it = cache_map_.find(session_id);
-    if (it != cache_map_.end()) {
-        cache_list_.erase(it->second);
-        cache_map_.erase(it);
-    }
-}
-
-void LRUCache::clear() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    cache_list_.clear();
-    cache_map_.clear();
-}
-
-size_t LRUCache::size() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return cache_list_.size();
-}
-
-size_t LRUCache::capacity() const {
-    return capacity_;
-}
-
-void LRUCache::evict() {
-    if (!cache_list_.empty()) {
-        auto& last = cache_list_.back();
-        cache_map_.erase(last.session_id);
-        cache_list_.pop_back();
-    }
-}
 
 // SessionStorage implementation
 SessionStorage::SessionStorage(const Config& config)
@@ -120,174 +50,101 @@ bool SessionStorage::save_session(std::shared_ptr<Session> session) {
     if (!session) {
         return false;
     }
-    
     maybe_cleanup();
-    
     std::lock_guard<std::mutex> lock(db_mutex_);
-    
     if (!initialized_) {
         return false;
     }
-    
     const char* sql = R"(
         INSERT OR REPLACE INTO sessions (
             session_id, session_data, created_at, last_activity, total_tokens
         ) VALUES (?, ?, ?, ?, ?)
     )";
-    
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
+    SqliteStatement stmt(db_, sql);
+    if (!stmt.valid()) {
         return false;
     }
-    
-    auto json_data = session->to_json();
-    std::string json_str = json_data.dump();
-    
+    std::string json_str = session->to_json().dump();
     auto created_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         session->get_created_at().time_since_epoch()).count();
     auto activity_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         session->get_last_activity().time_since_epoch()).count();
-    
-    sqlite3_bind_text(stmt, 1, session->get_session_id().c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, json_str.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int64(stmt, 3, created_ms);
-    sqlite3_bind_int64(stmt, 4, activity_ms);
-    sqlite3_bind_int64(stmt, 5, static_cast<int64_t>(session->get_total_tokens()));
-    
-    rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    
+    stmt.bind_text(1, session->get_session_id());
+    stmt.bind_text(2, json_str);
+    stmt.bind_int64(3, created_ms);
+    stmt.bind_int64(4, activity_ms);
+    stmt.bind_int64(5, static_cast<int64_t>(session->get_total_tokens()));
+    int rc = stmt.step();
     if (rc == SQLITE_DONE) {
-        // Update cache
         cache_->put(session->get_session_id(), session);
         return true;
     }
-    
     return false;
 }
 
 std::shared_ptr<Session> SessionStorage::load_session(const std::string& session_id) {
-    // Check cache first
     auto cached_session = cache_->get(session_id);
-    if (cached_session) {
-        cached_session->touch();
-        return cached_session;
-    }
-    
+    if (cached_session) { cached_session->touch(); return cached_session; }
     maybe_cleanup();
-    
     std::lock_guard<std::mutex> lock(db_mutex_);
-    
-    if (!initialized_) {
-        return nullptr;
-    }
-    
+    if (!initialized_) { return nullptr; }
     const char* sql = "SELECT session_data FROM sessions WHERE session_id = ? AND NOT ?";
-    
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return nullptr;
-    }
-    
-    sqlite3_bind_text(stmt, 1, session_id.c_str(), -1, SQLITE_STATIC);
-    
+    SqliteStatement stmt(db_, sql);
+    if (!stmt.valid()) { return nullptr; }
+    stmt.bind_text(1, session_id);
     auto current_time = current_timestamp();
     auto expiry_time = current_time - std::chrono::duration_cast<std::chrono::milliseconds>(config_.session_ttl).count();
-    sqlite3_bind_int(stmt, 2, static_cast<int>(current_time < expiry_time));
-    
+    stmt.bind_int(2, static_cast<int>(current_time < expiry_time));
     std::shared_ptr<Session> session = nullptr;
-    
-    rc = sqlite3_step(stmt);
+    int rc = stmt.step();
     if (rc == SQLITE_ROW) {
-        const char* json_data = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const char* json_data = reinterpret_cast<const char*>(stmt.column_text(0));
         if (json_data) {
             try {
-                auto json = nlohmann::json::parse(json_data);
-                session = std::make_shared<Session>(json);
+                auto j = nlohmann::json::parse(json_data);
+                session = std::make_shared<Session>(j);
                 session->touch();
-                
-                // Add to cache
                 cache_->put(session_id, session);
-            } catch (const std::exception& e) {
-                // Invalid JSON data, return nullptr
-                session = nullptr;
-            }
+            } catch (...) { session = nullptr; }
         }
     }
-    
-    sqlite3_finalize(stmt);
     return session;
 }
 
 bool SessionStorage::delete_session(const std::string& session_id) {
     std::lock_guard<std::mutex> lock(db_mutex_);
-    
-    if (!initialized_) {
-        return false;
-    }
-    
+    if (!initialized_) { return false; }
     const char* sql = "DELETE FROM sessions WHERE session_id = ?";
-    
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return false;
-    }
-    
-    sqlite3_bind_text(stmt, 1, session_id.c_str(), -1, SQLITE_STATIC);
-    
-    rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    
-    if (rc == SQLITE_DONE) {
-        // Remove from cache
-        cache_->remove(session_id);
-        return true;
-    }
-    
+    SqliteStatement stmt(db_, sql);
+    if (!stmt.valid()) { return false; }
+    stmt.bind_text(1, session_id);
+    int rc = stmt.step();
+    if (rc == SQLITE_DONE) { cache_->remove(session_id); return true; }
     return false;
 }
 
 bool SessionStorage::session_exists(const std::string& session_id) {
-    // Check cache first
-    if (cache_->get(session_id)) {
-        return true;
-    }
-    
+    if (cache_->get(session_id)) { return true; }
     std::lock_guard<std::mutex> lock(db_mutex_);
-    
-    if (!initialized_) {
-        return false;
-    }
-    
+    if (!initialized_) { return false; }
     const char* sql = "SELECT 1 FROM sessions WHERE session_id = ? LIMIT 1";
-    
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return false;
-    }
-    
-    sqlite3_bind_text(stmt, 1, session_id.c_str(), -1, SQLITE_STATIC);
-    
-    rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    
+    SqliteStatement stmt(db_, sql);
+    if (!stmt.valid()) { return false; }
+    stmt.bind_text(1, session_id);
+    int rc = stmt.step();
     return rc == SQLITE_ROW;
 }
 
-std::vector<nlohmann::json> SessionStorage::list_sessions() {
+std::vector<std::string> SessionStorage::list_sessions() {
     return list_sessions(0, 0, "last_activity", false);
 }
 
-std::vector<nlohmann::json> SessionStorage::list_sessions(size_t limit, size_t offset, 
-                                                         const std::string& sort_by, 
-                                                         bool ascending) {
+std::vector<std::string> SessionStorage::list_sessions(size_t limit, size_t offset,
+                                                       const std::string& sort_by,
+                                                       bool ascending) {
     std::lock_guard<std::mutex> lock(db_mutex_);
     
-    std::vector<nlohmann::json> sessions;
+    std::vector<std::string> sessions;
     
     if (!initialized_) {
         return sessions;
@@ -317,7 +174,7 @@ std::vector<nlohmann::json> SessionStorage::list_sessions(size_t limit, size_t o
     }
     
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        sessions.push_back(sqlite_row_to_metadata(stmt));
+    sessions.push_back(sqlite_row_to_metadata(stmt));
     }
     
     sqlite3_finalize(stmt);
@@ -347,7 +204,7 @@ bool SessionStorage::export_to_json(const std::string& file_path) {
             try {
                 auto session_json = nlohmann::json::parse(json_data);
                 export_data.push_back(session_json);
-            } catch (const std::exception& e) {
+            } catch (const std::exception&) {
                 // Skip invalid JSON entries
                 continue;
             }
@@ -394,14 +251,14 @@ bool SessionStorage::import_from_json(const std::string& file_path, bool overwri
                 if (save_session(session)) {
                     imported_count++;
                 }
-            } catch (const std::exception& e) {
+            } catch (const std::exception&) {
                 // Skip invalid session entries
                 continue;
             }
         }
         
         return imported_count > 0;
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         return false;
     }
 }
@@ -437,7 +294,7 @@ size_t SessionStorage::cleanup_expired_sessions() {
     return 0;
 }
 
-nlohmann::json SessionStorage::get_statistics() {
+std::string SessionStorage::get_statistics() {
     std::lock_guard<std::mutex> lock(db_mutex_);
     
     nlohmann::json stats;
@@ -475,7 +332,7 @@ nlohmann::json SessionStorage::get_statistics() {
     stats["session_ttl_hours"] = config_.session_ttl.count();
     stats["auto_cleanup_enabled"] = config_.enable_auto_cleanup;
     
-    return stats;
+    return stats.dump();
 }
 
 void SessionStorage::close() {
@@ -546,13 +403,12 @@ void SessionStorage::maybe_cleanup() {
     }
 }
 
-nlohmann::json SessionStorage::sqlite_row_to_metadata(sqlite3_stmt* stmt) {
-    return nlohmann::json{
-        {"session_id", reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0))},
-        {"created_at", sqlite3_column_int64(stmt, 1)},
-        {"last_activity", sqlite3_column_int64(stmt, 2)},
-        {"total_tokens", sqlite3_column_int64(stmt, 3)}
-    };
+std::string SessionStorage::sqlite_row_to_metadata(sqlite3_stmt* stmt) {
+    nlohmann::json j{{"session_id", reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0))},
+                     {"created_at", sqlite3_column_int64(stmt, 1)},
+                     {"last_activity", sqlite3_column_int64(stmt, 2)},
+                     {"total_tokens", sqlite3_column_int64(stmt, 3)}};
+    return j.dump();
 }
 
 int64_t SessionStorage::current_timestamp() {

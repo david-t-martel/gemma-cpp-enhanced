@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Session.h"
-#include "SessionStorage.h"
+#include "i_session_storage.h"
 #include <string>
 #include <memory>
 #include <mutex>
@@ -9,7 +9,7 @@
 #include <chrono>
 #include <vector>
 #include <functional>
-#include <nlohmann/json.hpp>
+// Avoid pulling heavy JSON dependency into public header; use opaque strings.
 
 namespace gemma {
 namespace session {
@@ -27,7 +27,16 @@ public:
      * @brief Session manager configuration
      */
     struct Config {
-        SessionStorage::Config storage_config;     // Storage configuration
+        // Keep original concrete config temporarily; will be decoupled in later phase
+        // Forward use SessionStorage::Config if concrete storage present
+        // (We declare a minimal placeholder here to avoid hard dependency loop.)
+        struct StorageConfigShim {
+            std::string db_path = "sessions.db";
+            size_t cache_capacity = 100;
+            std::chrono::hours session_ttl{24};
+            bool enable_auto_cleanup = true;
+            std::chrono::minutes cleanup_interval{60};
+        } storage_config;                         // Temporary shim
         size_t default_max_context_tokens = 8192;  // Default context window size
         bool enable_metrics = true;                // Enable performance metrics
         std::chrono::minutes metrics_interval{5};  // Metrics collection interval
@@ -37,9 +46,9 @@ public:
      * @brief Session creation options
      */
     struct CreateOptions {
-        std::string session_id;                    // Custom session ID (empty = auto-generate)
-        size_t max_context_tokens = 0;            // Context window size (0 = use default)
-        nlohmann::json metadata;                   // Additional metadata
+        std::string session_id;              // Custom session ID (empty = auto-generate)
+        size_t max_context_tokens = 0;       // Context window size (0 = use default)
+        std::string metadata_json;           // Raw JSON string (deferred parse) to avoid header dep
     };
     
     /**
@@ -73,8 +82,9 @@ public:
     SessionManager& operator=(const SessionManager&) = delete;
     
     // Enable move constructor and assignment
-    SessionManager(SessionManager&&) = default;
-    SessionManager& operator=(SessionManager&&) = default;
+    // Non-movable for now (mutex & pointers); can be revisited after full interface DI.
+    SessionManager(SessionManager&&) = delete;
+    SessionManager& operator=(SessionManager&&) = delete;
     
     /**
      * @brief Initialize the session manager
@@ -89,7 +99,8 @@ public:
      * @param options Session creation options
      * @return std::string Session ID of the created session
      */
-    std::string create_session(const CreateOptions& options = CreateOptions{});
+    std::string create_session(const CreateOptions& options);
+    std::string create_session(); // convenience overload using defaults
     
     /**
      * @brief Get an existing session
@@ -171,9 +182,9 @@ public:
      * @param ascending Sort direction
      * @return std::vector<nlohmann::json> List of session metadata
      */
-    std::vector<nlohmann::json> list_sessions(size_t limit = 0, size_t offset = 0, 
-                                             const std::string& sort_by = "last_activity", 
-                                             bool ascending = false);
+    std::vector<std::string> list_sessions(size_t limit = 0, size_t offset = 0,
+                                           const std::string& sort_by = "last_activity",
+                                           bool ascending = false);
     
     /**
      * @brief Export sessions to JSON file
@@ -206,7 +217,7 @@ public:
      * 
      * @return nlohmann::json Statistics including storage and performance metrics
      */
-    nlohmann::json get_statistics();
+    std::string get_statistics(); // JSON string
     
     /**
      * @brief Get current performance metrics
@@ -225,7 +236,7 @@ public:
      * 
      * @param callback Function to call on session events
      */
-    void set_event_callback(std::function<void(const std::string& event, const nlohmann::json& data)> callback);
+    void set_event_callback(std::function<void(const std::string& event, const std::string& data_json)> callback);
     
     /**
      * @brief Get the current configuration
@@ -241,13 +252,13 @@ public:
 
 private:
     Config config_;
-    std::unique_ptr<SessionStorage> storage_;
+    std::unique_ptr<ISessionStorage> storage_;
     mutable std::mutex manager_mutex_;
     std::mt19937 uuid_generator_;
     bool initialized_;
     Metrics metrics_;
     std::chrono::system_clock::time_point last_metrics_update_;
-    std::function<void(const std::string&, const nlohmann::json&)> event_callback_;
+    std::function<void(const std::string&, const std::string&)> event_callback_;
     
     /**
      * @brief Generate a unique session ID
@@ -267,7 +278,7 @@ private:
      * @param event Event name
      * @param data Event data
      */
-    void fire_event(const std::string& event, const nlohmann::json& data);
+    void fire_event(const std::string& event, const std::string& data_json);
     
     /**
      * @brief Generate UUID v4 string

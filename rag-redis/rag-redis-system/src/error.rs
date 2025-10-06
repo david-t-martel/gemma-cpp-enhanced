@@ -94,6 +94,12 @@ impl From<anyhow::Error> for Error {
     }
 }
 
+impl From<tokio::sync::AcquireError> for Error {
+    fn from(e: tokio::sync::AcquireError) -> Self {
+        Error::Memory(format!("Semaphore acquire error: {}", e))
+    }
+}
+
 #[cfg(feature = "metrics")]
 impl From<prometheus::Error> for Error {
     fn from(e: prometheus::Error) -> Self {

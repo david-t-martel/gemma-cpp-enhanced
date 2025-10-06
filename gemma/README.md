@@ -1,31 +1,46 @@
-<<<<<<< HEAD
 # gemma Project
 
-This project contains a C++ implementation of the Gemma model and a Python CLI wrapper for interacting with it.
+This project contains a C++ implementation of the Gemma family (Gemma 2/3, Griffin recurrent, and PaliGemma vision) plus a Python CLI bridge.
+
+## Repository Layout (Consolidated)
+
+Core C++ engine sources live under `gemma.cpp/gemma/` (e.g. `gemma/attention.cc`, `gemma/gemma.cc`, `gemma/weights.cc`).
+Legacy build variants and duplicate snapshots were removed or archived in `.archive/`.
+
+Key CMake options:
+- `GEMMA_DISABLE_GRIFFIN=ON` build without the recurrent Griffin layer (links stub)
+- `GEMMA_EXCLUDE_ARCHIVE=OFF` include `.archive/` in install packaging (default ON skips it)
 
 ## Building the `gemma` executable
 
 The `gemma` executable is built using the Windows Subsystem for Linux (WSL). Follow these steps:
 
-1.  Open a WSL terminal.
-2.  Navigate to the `gemma.cpp` directory:
-    ```bash
-    cd /mnt/c/codedev/llm/gemma/gemma.cpp
-    ```
-3.  Create a build directory and navigate into it:
-    ```bash
-    mkdir build_wsl && cd build_wsl
-    ```
-4.  Configure the build with CMake:
-    ```bash
-    cmake ..
-    ```
-5.  Compile the executable:
-    ```bash
-    make -j4
-    ```
+1. Open a WSL terminal.
+2. Navigate to the `gemma.cpp` directory:
 
-This will create a `gemma` executable in the `build_wsl` directory.
+```bash
+cd /mnt/c/codedev/llm/gemma/gemma.cpp
+```
+
+3. Create a build directory and enter it:
+
+```bash
+mkdir build_wsl && cd build_wsl
+```
+
+4. Configure the build:
+
+```bash
+cmake ..
+```
+
+5. Compile:
+
+```bash
+make -j4
+```
+
+This creates a `gemma` executable in `build_wsl`. For native Windows builds (without WSL) see `gemma.cpp/WINDOWS_BUILD_SUCCESS.md`.
 
 ## Using the `gemma-cli.py` wrapper
 
@@ -46,8 +61,6 @@ python gemma-cli.py --model C:\codedev\llm\.models\gemma-gemmacpp-2b-it-v3\2b-it
 The `gemma-cli.py` script has been configured to use the WSL-built `gemma` executable. It uses the `wsl.exe` command to run the Linux executable from Windows.
 
 See the `GEMMA_CLI_USAGE.md` file for more details on the available command-line options and interactive commands.
-||||||| empty tree
-=======
 # gemma Project
 
 This project contains a C++ implementation of the Gemma model and a Python CLI wrapper for interacting with it.
@@ -86,7 +99,7 @@ doxygen Doxyfile
 
 This will generate HTML documentation in the `html` directory. You can view the documentation by opening the `index.html` file in your web browser.
 
-The documentation is also automatically generated and deployed to GitHub Pages on every push to the `main` branch.
+Documentation can be generated locally with Doxygen (CI deployment may be disabled in this fork).
 
 ## Using the `gemma-cli.py` wrapper
 
@@ -107,4 +120,3 @@ python gemma-cli.py --model C:\codedev\llm\.models\gemma-gemmacpp-2b-it-v3\2b-it
 The `gemma-cli.py` script has been configured to use the WSL-built `gemma` executable. It uses the `wsl.exe` command to run the Linux executable from Windows.
 
 See the `GEMMA_CLI_USAGE.md` file for more details on the available command-line options and interactive commands.
->>>>>>> clean-refactor-branch

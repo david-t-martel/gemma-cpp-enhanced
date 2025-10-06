@@ -30,7 +30,7 @@ The RAG-Redis System is a high-performance Retrieval-Augmented Generation system
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Client Applications                      │
-│  (Rust Native, C/C++ via FFI, Python via MCP, REST API)        │
+│  (Rust Native, C/C++ via FFI, Native Rust MCP, REST API)       │
 └─────────────┬───────────────────────────────────┬───────────────┘
               │                                   │
               ▼                                   ▼

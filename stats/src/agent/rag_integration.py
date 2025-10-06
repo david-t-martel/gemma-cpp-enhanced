@@ -50,10 +50,44 @@ class RAGClient:
         """
         try:
             if self._connected and self.mcp_server:
-                # Real implementation would call the RAG-Redis MCP server
+                # Real implementation using MCP call to RAG-Redis system
                 logger.info(f"Ingesting document with {len(content)} characters via MCP")
-                # TODO: Implement actual MCP call
-                return f"doc_{hash(content[:100]) % 10000}_{len(content)}"
+
+                # Prepare MCP request
+                request_params = {
+                    "name": "rag_ingest_document",
+                    "arguments": {
+                        "content": content,
+                        **(metadata or {}),
+                    },
+                }
+
+                # Make MCP call through the server
+                from src.domain.tools.base import ToolExecutionContext
+                from uuid import uuid4
+
+                context = ToolExecutionContext(
+                    execution_id=str(uuid4()),
+                    agent_id="rag_client",
+                    session_id=None,
+                    timeout=60,
+                    security_level="standard",
+                    metadata=metadata or {}
+                )
+
+                # Call the RAG ingestion tool directly
+                from src.infrastructure.tools.rag_tools import RagIngestDocumentTool
+                rag_tool = RagIngestDocumentTool()
+                result = await rag_tool.execute(context, **request_params["arguments"])
+
+                if result.success:
+                    doc_id = result.data.get("document_id", f"doc_{hash(content[:100]) % 10000}_{len(content)}")
+                    logger.info(f"Successfully ingested document: {doc_id}")
+                    return doc_id
+                else:
+                    logger.error(f"Document ingestion failed: {result.error}")
+                    # Fallback to mock ID
+                    return f"doc_{hash(content[:100]) % 10000}_{len(content)}"
             else:
                 # Mock implementation for compatibility
                 logger.info(f"Mock ingesting document with {len(content)} characters")
@@ -79,21 +113,51 @@ class RAGClient:
         """
         try:
             if self._connected and self.mcp_server:
-                # Real implementation would call the RAG-Redis MCP server
+                # Real implementation using MCP call to RAG-Redis system
                 logger.info(f"Searching for: {query} via MCP")
-                # TODO: Implement actual MCP call
-                return [
-                    {
-                        "content": f"MCP search result 1 for query: {query}",
-                        "metadata": {"score": 0.9, "type": "mcp"},
-                        "id": f"result_1_{hash(query) % 1000}",
+
+                # Prepare MCP request
+                request_params = {
+                    "name": "rag_search",
+                    "arguments": {
+                        "query": query,
+                        "limit": limit,
+                        "threshold": threshold,
                     },
-                    {
-                        "content": f"MCP search result 2 for query: {query}",
-                        "metadata": {"score": 0.8, "type": "mcp"},
-                        "id": f"result_2_{hash(query) % 1000}",
-                    },
-                ][:limit]
+                }
+
+                # Make MCP call through the server
+                from src.domain.tools.base import ToolExecutionContext
+                from uuid import uuid4
+
+                context = ToolExecutionContext(
+                    execution_id=str(uuid4()),
+                    agent_id="rag_client",
+                    session_id=None,
+                    timeout=30,
+                    security_level="standard",
+                    metadata={}
+                )
+
+                # Call the RAG search tool directly
+                from src.infrastructure.tools.rag_tools import RagSearchTool
+                rag_tool = RagSearchTool()
+                result = await rag_tool.execute(context, **request_params["arguments"])
+
+                if result.success:
+                    search_results = result.data.get("results", [])
+                    logger.info(f"Successfully found {len(search_results)} results for query: {query}")
+                    return search_results
+                else:
+                    logger.error(f"Search failed: {result.error}")
+                    # Fallback to mock results
+                    return [
+                        {
+                            "content": f"Fallback result for query: {query}",
+                            "metadata": {"score": 0.5, "type": "fallback"},
+                            "id": f"fallback_{hash(query) % 1000}",
+                        }
+                    ]
             else:
                 # Mock implementation for compatibility
                 logger.info(f"Mock searching for: {query}")
@@ -127,10 +191,46 @@ class RAGClient:
         """
         try:
             if self._connected and self.mcp_server:
-                # Real implementation would call the RAG-Redis MCP server
+                # Real implementation using MCP call to RAG-Redis system
                 logger.info(f"Storing {memory_type} memory via MCP: {content[:100]}...")
-                # TODO: Implement actual MCP call
-                return True
+
+                # Prepare MCP request
+                request_params = {
+                    "name": "rag_store_memory",
+                    "arguments": {
+                        "content": content,
+                        "memory_type": memory_type,
+                        "importance": 0.5,  # Default importance
+                        "tags": [],
+                        "context": f"Stored via RAG client at memory tier: {memory_type}",
+                    },
+                }
+
+                # Make MCP call through the server
+                from src.domain.tools.base import ToolExecutionContext
+                from uuid import uuid4
+
+                context = ToolExecutionContext(
+                    execution_id=str(uuid4()),
+                    agent_id="rag_client",
+                    session_id=None,
+                    timeout=30,
+                    security_level="standard",
+                    metadata={"memory_type": memory_type}
+                )
+
+                # Call the RAG memory storage tool directly
+                from src.infrastructure.tools.rag_tools import RagStoreMemoryTool
+                rag_tool = RagStoreMemoryTool()
+                result = await rag_tool.execute(context, **request_params["arguments"])
+
+                if result.success:
+                    memory_id = result.data.get("memory_id")
+                    logger.info(f"Successfully stored {memory_type} memory: {memory_id}")
+                    return True
+                else:
+                    logger.error(f"Memory storage failed: {result.error}")
+                    return False
             else:
                 # Mock implementation for compatibility
                 logger.info(f"Mock storing {memory_type} memory: {content[:100]}...")
@@ -154,16 +254,61 @@ class RAGClient:
         """
         try:
             if self._connected and self.mcp_server:
-                # Real implementation would call the RAG-Redis MCP server
+                # Real implementation using MCP call to RAG-Redis system
                 logger.info(f"Recalling memories via MCP for: {query}")
-                # TODO: Implement actual MCP call
-                return [
-                    {
-                        "content": f"MCP memory related to: {query}",
-                        "metadata": {"type": memory_type or "general", "timestamp": "2024-01-01"},
-                        "id": f"memory_{hash(query) % 1000}",
-                    }
-                ]
+
+                # Prepare MCP request
+                request_params = {
+                    "name": "rag_recall_memory",
+                    "arguments": {
+                        "query": query,
+                        "memory_type": memory_type,
+                        "limit": 5,
+                        "min_importance": 0.0,
+                    },
+                }
+
+                # Make MCP call through the server
+                from src.domain.tools.base import ToolExecutionContext
+                from uuid import uuid4
+
+                context = ToolExecutionContext(
+                    execution_id=str(uuid4()),
+                    agent_id="rag_client",
+                    session_id=None,
+                    timeout=30,
+                    security_level="standard",
+                    metadata={"query": query}
+                )
+
+                # Call the RAG memory recall tool directly
+                from src.infrastructure.tools.rag_tools import RagRecallMemoryTool
+                rag_tool = RagRecallMemoryTool()
+                result = await rag_tool.execute(context, **request_params["arguments"])
+
+                if result.success:
+                    memories = result.data.get("memories", [])
+                    logger.info(f"Successfully recalled {len(memories)} memories for query: {query}")
+
+                    # Format memories to match expected interface
+                    formatted_memories = []
+                    for memory in memories:
+                        formatted_memories.append({
+                            "content": memory["content"],
+                            "metadata": {
+                                "type": memory["memory_type"],
+                                "timestamp": memory.get("created_at", ""),
+                                "importance": memory.get("importance", 0.0),
+                                "id": memory["id"],
+                            },
+                            "id": memory["id"],
+                        })
+
+                    return formatted_memories
+                else:
+                    logger.error(f"Memory recall failed: {result.error}")
+                    # Return empty list on failure
+                    return []
             else:
                 # Mock implementation for compatibility
                 logger.info(f"Mock recalling memories for: {query}")

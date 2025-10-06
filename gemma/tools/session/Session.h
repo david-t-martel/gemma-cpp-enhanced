@@ -6,30 +6,21 @@
 #include <chrono>
 #include <memory>
 #include <atomic>
-#include <nlohmann/json.hpp>
+#include <cstddef>
+// Include JSON forward declarations (light) or full header to expose nlohmann::json in API.
+#if __has_include(<nlohmann/json.hpp>)
+    #include <nlohmann/json.hpp>
+#elif __has_include(<nlohmann/json_fwd.hpp>)
+    #include <nlohmann/json_fwd.hpp>
+#else
+    #include "../../third_party/nlohmann_json/single_include/nlohmann/json.hpp"
+#endif
+#include "conversation_types.h"
 
 namespace gemma {
 namespace session {
 
-/**
- * @brief Structure representing a conversation message
- */
-struct ConversationMessage {
-    enum class Role {
-        USER,
-        ASSISTANT,
-        SYSTEM
-    };
-
-    Role role;
-    std::string content;
-    std::chrono::system_clock::time_point timestamp;
-    size_t token_count;
-
-    // Serialization support
-    void to_json(nlohmann::json& j) const;
-    void from_json(const nlohmann::json& j);
-};
+// ConversationMessage has been moved to conversation_types.h (Phase 1 refactor)
 
 /**
  * @brief Session class representing an individual conversation session
@@ -53,11 +44,7 @@ public:
      */
     explicit Session(const std::string& session_id, size_t max_context_tokens = 8192);
 
-    /**
-     * @brief Construct a Session from serialized JSON data
-     *
-     * @param json_data Serialized session data
-     */
+    // JSON-based constructor for deserialization
     explicit Session(const nlohmann::json& json_data);
 
     // Disable copy constructor and assignment
@@ -152,62 +139,25 @@ public:
      */
     size_t get_max_context_tokens() const;
 
-    /**
-     * @brief Serialize the session to JSON
-     *
-     * @return nlohmann::json Serialized session data
-     */
+    // Serialization API
     nlohmann::json to_json() const;
-
-    /**
-     * @brief Deserialize the session from JSON
-     *
-     * @param json_data Serialized session data
-     */
     void from_json(const nlohmann::json& json_data);
-
-    /**
-     * @brief Get session metadata as JSON
-     *
-     * @return nlohmann::json Session metadata (id, timestamps, token counts)
-     */
     nlohmann::json get_metadata() const;
 
 private:
     std::string session_id_;
-    std::deque<ConversationMessage> conversation_history_;  // Changed to deque for O(1) front operations
+    std::deque<ConversationMessage> conversation_history_;
     size_t max_context_tokens_;
     size_t total_tokens_;
-
-    // Performance optimization: cache context state
-    mutable size_t cached_context_tokens_;  // Cached context token count
-    mutable bool context_cache_valid_;      // Whether cache is valid
-    mutable size_t context_start_index_;    // Starting index for context window
-
+    mutable size_t cached_context_tokens_;
+    mutable bool context_cache_valid_;
+    mutable size_t context_start_index_;
     std::chrono::system_clock::time_point created_at_;
     std::chrono::system_clock::time_point last_activity_;
 
-    /**
-     * @brief Trim conversation history to fit within context window
-     * Removes oldest messages that don't fit in context
-     */
     void trim_context();
-
-    /**
-     * @brief Calculate and cache the token count for messages in context
-     *
-     * @return size_t Number of tokens in context
-     */
     size_t calculate_context_tokens() const;
-
-    /**
-     * @brief Invalidate the context cache
-     */
     void invalidate_context_cache() const;
-
-    /**
-     * @brief Update context cache if invalid
-     */
     void update_context_cache() const;
 };
 

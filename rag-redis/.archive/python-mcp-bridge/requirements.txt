@@ -1,0 +1,31 @@
+# Multi-Agent Coordination System Dependencies
+
+# Redis async client
+redis[hiredis]>=5.0.0
+
+# Async support
+aioredis>=2.0.0
+
+# Data validation and serialization
+pydantic>=2.0.0
+
+# Async HTTP client (for future API integrations)
+aiohttp>=3.8.0
+
+# Configuration management
+python-dotenv>=1.0.0
+
+# Logging and monitoring
+structlog>=23.0.0
+
+# Type hints
+typing-extensions>=4.0.0
+
+# Testing (optional)
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# Development tools (optional)
+black>=23.0.0
+isort>=5.12.0
+mypy>=1.5.0

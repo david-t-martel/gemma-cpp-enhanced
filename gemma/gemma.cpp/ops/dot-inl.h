@@ -26,6 +26,7 @@
 #endif
 
 #include "hwy/highway.h"
+#include "ops/highway_scalar_fallback.h"
 // After highway.h
 #include "compression/compress-inl.h"
 #include "ops/fp_arith-inl.h"
@@ -265,7 +266,13 @@ struct DotKernelCompensated {
   // `VT` and `WT` to be `BF16`, or smaller types decompressed to `BF16`.
   // Otherwise, we decompress both inputs to `float`.
   template <typename VT, typename WT>
-  using Raw = hwy::If<IsF32<VT>() || IsF32<WT>(), float, BF16>;
+  using Raw =
+#if HWY_TARGET == HWY_SCALAR
+      // Force Raw=float in scalar builds to avoid BF16 multi-lane descriptors
+      float;
+#else
+      hwy::If<IsF32<VT>() || IsF32<WT>(), float, BF16>;
+#endif
   using State = float;
 
   // Raw = float
@@ -355,8 +362,13 @@ struct DotKernelCompensated {
   }
 };
 
+#if HWY_TARGET == HWY_SCALAR
+// Scalar: always use compensated kernel with Raw forced to float above.
+using DotKernelDefault = DotKernelCompensated;
+#else
 using DotKernelDefault =
-    hwy::If<HWY_HAVE_FLOAT64, DotKernelDouble, DotKernelCompensated>;
+  hwy::If<HWY_HAVE_FLOAT64, DotKernelDouble, DotKernelCompensated>;
+#endif
 
 // `D` only serves to specify the vector size; its lane type is ignored.
 template <class D, typename WT, typename VT>

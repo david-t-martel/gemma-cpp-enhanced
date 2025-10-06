@@ -1,32 +1,12 @@
 #include "Session.h"
-#include <algorithm>
+#include "session_serialization.h"
 #include <stdexcept>
 #include <numeric>
 
 namespace gemma {
 namespace session {
 
-// ConversationMessage serialization
-void ConversationMessage::to_json(nlohmann::json& j) const {
-    j = nlohmann::json{
-        {"role", static_cast<int>(role)},
-        {"content", content},
-        {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-            timestamp.time_since_epoch()).count()},
-        {"token_count", token_count}
-    };
-}
-
-void ConversationMessage::from_json(const nlohmann::json& j) {
-    role = static_cast<Role>(j.at("role").get<int>());
-    content = j.at("content").get<std::string>();
-
-    auto timestamp_ms = j.at("timestamp").get<int64_t>();
-    timestamp = std::chrono::system_clock::time_point(
-        std::chrono::milliseconds(timestamp_ms));
-
-    token_count = j.at("token_count").get<size_t>();
-}
+// ConversationMessage serialization moved to session_serialization.cpp
 
 // Session implementation
 Session::Session(const std::string& session_id, size_t max_context_tokens)
@@ -48,12 +28,7 @@ Session::Session(const std::string& session_id, size_t max_context_tokens)
     }
 }
 
-Session::Session(const nlohmann::json& json_data)
-    : cached_context_tokens_(0)
-    , context_cache_valid_(false)
-    , context_start_index_(0) {
-    from_json(json_data);
-}
+// JSON constructor removed; use make_session_from_json factory (session_json.cpp)
 
 void Session::add_message(ConversationMessage::Role role, const std::string& content, size_t token_count) {
     if (content.empty()) {
@@ -154,76 +129,7 @@ size_t Session::get_max_context_tokens() const {
     return max_context_tokens_;
 }
 
-nlohmann::json Session::to_json() const {
-    nlohmann::json j;
-    j["session_id"] = session_id_;
-    j["max_context_tokens"] = max_context_tokens_;
-    j["total_tokens"] = total_tokens_;
-    j["created_at"] = std::chrono::duration_cast<std::chrono::milliseconds>(
-        created_at_.time_since_epoch()).count();
-    j["last_activity"] = std::chrono::duration_cast<std::chrono::milliseconds>(
-        last_activity_.time_since_epoch()).count();
-
-    j["conversation_history"] = nlohmann::json::array();
-    for (const auto& message : conversation_history_) {
-        nlohmann::json msg_json;
-        message.to_json(msg_json);
-        j["conversation_history"].push_back(msg_json);
-    }
-
-    return j;
-}
-
-void Session::from_json(const nlohmann::json& json_data) {
-    session_id_ = json_data.at("session_id").get<std::string>();
-    max_context_tokens_ = json_data.at("max_context_tokens").get<size_t>();
-    total_tokens_ = json_data.at("total_tokens").get<size_t>();
-
-    auto created_ms = json_data.at("created_at").get<int64_t>();
-    created_at_ = std::chrono::system_clock::time_point(std::chrono::milliseconds(created_ms));
-
-    auto activity_ms = json_data.at("last_activity").get<int64_t>();
-    last_activity_ = std::chrono::system_clock::time_point(std::chrono::milliseconds(activity_ms));
-
-    conversation_history_.clear();
-    if (json_data.contains("conversation_history")) {
-        for (const auto& msg_json : json_data.at("conversation_history")) {
-            ConversationMessage message;
-            message.from_json(msg_json);
-            conversation_history_.push_back(std::move(message));
-        }
-    }
-
-    // Validate session after deserialization
-    if (session_id_.empty()) {
-        throw std::invalid_argument("Deserialized session ID cannot be empty");
-    }
-
-    if (max_context_tokens_ == 0) {
-        throw std::invalid_argument("Deserialized max context tokens must be greater than 0");
-    }
-
-    // Invalidate cache after loading
-    invalidate_context_cache();
-}
-
-nlohmann::json Session::get_metadata() const {
-    // Use cached context tokens
-    update_context_cache();
-
-    return nlohmann::json{
-        {"session_id", session_id_},
-        {"created_at", std::chrono::duration_cast<std::chrono::milliseconds>(
-            created_at_.time_since_epoch()).count()},
-        {"last_activity", std::chrono::duration_cast<std::chrono::milliseconds>(
-            last_activity_.time_since_epoch()).count()},
-        {"total_tokens", total_tokens_},
-        {"context_tokens", cached_context_tokens_},
-        {"max_context_tokens", max_context_tokens_},
-        {"message_count", conversation_history_.size()},
-        {"context_message_count", conversation_history_.size() - context_start_index_}
-    };
-}
+// JSON (de)serialization moved to session_json.cpp
 
 void Session::trim_context() {
     // This function now actually trims old messages that are completely outside the context window

@@ -1,0 +1,452 @@
+"""
+Base MCP server implementation for gemma.cpp integration.
+"""
+
+import asyncio
+import json
+import logging
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union, Callable
+from dataclasses import dataclass, asdict
+import time
+import uuid
+
+# MCP Protocol imports
+try:
+    from mcp import server
+    from mcp.server import Server
+    from mcp.types import (
+        Resource, Tool, TextContent, ImageContent, EmbeddedResource,
+        LoggingLevel, GetPromptsResult, Prompt, GetResourcesResult,
+        GetToolsResult, CallToolResult, ListPromptsResult, ListResourcesResult,
+        ListToolsResult
+    )
+except ImportError:
+    # Fallback for development - define basic types
+    class Server:
+        def __init__(self, name: str, version: str):
+            self.name = name
+            self.version = version
+
+        def list_tools(self):
+            def decorator(func):
+                return func
+            return decorator
+
+        def call_tool(self):
+            def decorator(func):
+                return func
+            return decorator
+
+@dataclass
+class GemmaConfig:
+    """Configuration for Gemma MCP server."""
+    model_path: str
+    tokenizer_path: Optional[str] = None
+    gemma_executable: str = "/mnt/c/codedev/llm/gemma/gemma.cpp/build_wsl/gemma"
+    max_tokens: int = 2048
+    temperature: float = 0.7
+    max_context: int = 8192
+    enable_redis: bool = True
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    debug: bool = False
+
+class GemmaServer:
+    """MCP server for gemma.cpp integration."""
+
+    def __init__(self, config: GemmaConfig):
+        self.config = config
+        self.server = Server("gemma-mcp", "1.0.0")
+        self.logger = logging.getLogger(__name__)
+        self.setup_logging()
+
+        # Import GemmaInterface from the existing CLI
+        self.gemma_interface = None
+        self._initialize_gemma()
+
+        # Memory management
+        self.redis_client = None
+        if config.enable_redis:
+            self._initialize_redis()
+
+        # Performance tracking
+        self.metrics = {
+            "total_requests": 0,
+            "total_tokens_generated": 0,
+            "average_response_time": 0.0,
+            "requests_per_minute": 0,
+            "last_request_time": None
+        }
+
+        # Setup MCP handlers
+        self._setup_handlers()
+
+    def setup_logging(self):
+        """Setup logging configuration."""
+        level = logging.DEBUG if self.config.debug else logging.INFO
+        logging.basicConfig(
+            level=level,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
+    def _initialize_gemma(self):
+        """Initialize the Gemma interface."""
+        try:
+            # Import the existing GemmaInterface
+            sys.path.append(str(Path(__file__).parent.parent.parent / "gemma"))
+            from gemma_cli import GemmaInterface
+
+            self.gemma_interface = GemmaInterface(
+                model_path=self.config.model_path,
+                tokenizer_path=self.config.tokenizer_path,
+                gemma_executable=self.config.gemma_executable,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature
+            )
+            self.logger.info(f"Initialized Gemma interface with model: {self.config.model_path}")
+        except ImportError as e:
+            self.logger.error(f"Failed to import GemmaInterface: {e}")
+            raise
+        except Exception as e:
+            self.logger.error(f"Failed to initialize Gemma interface: {e}")
+            raise
+
+    def _initialize_redis(self):
+        """Initialize Redis connection for memory management."""
+        try:
+            import redis
+            self.redis_client = redis.Redis(
+                host=self.config.redis_host,
+                port=self.config.redis_port,
+                db=self.config.redis_db,
+                decode_responses=True
+            )
+            # Test connection
+            self.redis_client.ping()
+            self.logger.info("Redis connection established")
+        except ImportError:
+            self.logger.warning("Redis not available - memory features disabled")
+        except Exception as e:
+            self.logger.warning(f"Redis connection failed: {e} - memory features disabled")
+            self.redis_client = None
+
+    def _setup_handlers(self):
+        """Setup MCP protocol handlers."""
+
+        @self.server.list_tools()
+        async def handle_list_tools() -> ListToolsResult:
+            """List available tools."""
+            tools = [
+                Tool(
+                    name="generate_text",
+                    description="Generate text using the Gemma model",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "prompt": {
+                                "type": "string",
+                                "description": "The prompt to generate text from"
+                            },
+                            "max_tokens": {
+                                "type": "integer",
+                                "description": "Maximum tokens to generate",
+                                "default": self.config.max_tokens
+                            },
+                            "temperature": {
+                                "type": "number",
+                                "description": "Sampling temperature",
+                                "default": self.config.temperature
+                            },
+                            "stream": {
+                                "type": "boolean",
+                                "description": "Enable streaming response",
+                                "default": False
+                            }
+                        },
+                        "required": ["prompt"]
+                    }
+                ),
+                Tool(
+                    name="switch_model",
+                    description="Switch to a different model",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "model_path": {
+                                "type": "string",
+                                "description": "Path to the new model file"
+                            },
+                            "tokenizer_path": {
+                                "type": "string",
+                                "description": "Path to the tokenizer file (optional)"
+                            }
+                        },
+                        "required": ["model_path"]
+                    }
+                ),
+                Tool(
+                    name="get_metrics",
+                    description="Get server performance metrics",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                )
+            ]
+
+            # Add memory tools if Redis is available
+            if self.redis_client:
+                memory_tools = [
+                    Tool(
+                        name="store_memory",
+                        description="Store information in memory for later retrieval",
+                        inputSchema={
+                            "type": "object",
+                            "properties": {
+                                "key": {
+                                    "type": "string",
+                                    "description": "Memory key identifier"
+                                },
+                                "content": {
+                                    "type": "string",
+                                    "description": "Content to store"
+                                },
+                                "metadata": {
+                                    "type": "object",
+                                    "description": "Optional metadata"
+                                }
+                            },
+                            "required": ["key", "content"]
+                        }
+                    ),
+                    Tool(
+                        name="retrieve_memory",
+                        description="Retrieve stored memory by key",
+                        inputSchema={
+                            "type": "object",
+                            "properties": {
+                                "key": {
+                                    "type": "string",
+                                    "description": "Memory key identifier"
+                                }
+                            },
+                            "required": ["key"]
+                        }
+                    ),
+                    Tool(
+                        name="search_memory",
+                        description="Search memory by content similarity",
+                        inputSchema={
+                            "type": "object",
+                            "properties": {
+                                "query": {
+                                    "type": "string",
+                                    "description": "Search query"
+                                },
+                                "limit": {
+                                    "type": "integer",
+                                    "description": "Maximum results to return",
+                                    "default": 10
+                                }
+                            },
+                            "required": ["query"]
+                        }
+                    )
+                ]
+                tools.extend(memory_tools)
+
+            return ListToolsResult(tools=tools)
+
+        @self.server.call_tool()
+        async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> CallToolResult:
+            """Handle tool calls."""
+            start_time = time.time()
+            self.metrics["total_requests"] += 1
+            self.metrics["last_request_time"] = start_time
+
+            try:
+                if name == "generate_text":
+                    result = await self._handle_generate_text(arguments)
+                elif name == "switch_model":
+                    result = await self._handle_switch_model(arguments)
+                elif name == "get_metrics":
+                    result = await self._handle_get_metrics(arguments)
+                elif name == "store_memory":
+                    result = await self._handle_store_memory(arguments)
+                elif name == "retrieve_memory":
+                    result = await self._handle_retrieve_memory(arguments)
+                elif name == "search_memory":
+                    result = await self._handle_search_memory(arguments)
+                else:
+                    raise ValueError(f"Unknown tool: {name}")
+
+                # Update metrics
+                response_time = time.time() - start_time
+                self._update_metrics(response_time)
+
+                return CallToolResult(content=[TextContent(type="text", text=result)])
+
+            except Exception as e:
+                self.logger.error(f"Tool call failed: {e}")
+                return CallToolResult(
+                    content=[TextContent(type="text", text=f"Error: {str(e)}")],
+                    isError=True
+                )
+
+    async def _handle_generate_text(self, arguments: Dict[str, Any]) -> str:
+        """Handle text generation requests."""
+        prompt = arguments["prompt"]
+        max_tokens = arguments.get("max_tokens", self.config.max_tokens)
+        temperature = arguments.get("temperature", self.config.temperature)
+        stream = arguments.get("stream", False)
+
+        # Update generation parameters temporarily
+        original_max_tokens = self.gemma_interface.max_tokens
+        original_temperature = self.gemma_interface.temperature
+
+        self.gemma_interface.max_tokens = max_tokens
+        self.gemma_interface.temperature = temperature
+
+        try:
+            if stream:
+                # For streaming, we'll collect all chunks and return as complete response
+                # In a real implementation, this would use server-sent events or WebSocket
+                response = await self.gemma_interface.generate_response(
+                    prompt,
+                    stream_callback=lambda chunk: self.logger.debug(f"Stream chunk: {chunk}")
+                )
+            else:
+                response = await self.gemma_interface.generate_response(prompt)
+
+            # Track token count for metrics
+            estimated_tokens = len(response.split())
+            self.metrics["total_tokens_generated"] += estimated_tokens
+
+            return response
+
+        finally:
+            # Restore original parameters
+            self.gemma_interface.max_tokens = original_max_tokens
+            self.gemma_interface.temperature = original_temperature
+
+    async def _handle_switch_model(self, arguments: Dict[str, Any]) -> str:
+        """Handle model switching requests."""
+        model_path = arguments["model_path"]
+        tokenizer_path = arguments.get("tokenizer_path")
+
+        try:
+            # Reinitialize Gemma interface with new model
+            self.gemma_interface = GemmaInterface(
+                model_path=model_path,
+                tokenizer_path=tokenizer_path,
+                gemma_executable=self.config.gemma_executable,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature
+            )
+
+            self.config.model_path = model_path
+            if tokenizer_path:
+                self.config.tokenizer_path = tokenizer_path
+
+            return f"Successfully switched to model: {model_path}"
+
+        except Exception as e:
+            raise Exception(f"Failed to switch model: {str(e)}")
+
+    async def _handle_get_metrics(self, arguments: Dict[str, Any]) -> str:
+        """Handle metrics requests."""
+        # Calculate requests per minute
+        current_time = time.time()
+        if self.metrics["last_request_time"]:
+            time_diff = current_time - self.metrics["last_request_time"]
+            if time_diff > 0:
+                self.metrics["requests_per_minute"] = 60 / time_diff
+
+        metrics_data = {
+            "server_info": {
+                "name": self.server.name,
+                "version": self.server.version,
+                "model_path": self.config.model_path,
+                "redis_enabled": self.redis_client is not None
+            },
+            "performance": self.metrics,
+            "timestamp": current_time
+        }
+
+        return json.dumps(metrics_data, indent=2)
+
+    async def _handle_store_memory(self, arguments: Dict[str, Any]) -> str:
+        """Handle memory storage requests."""
+        if not self.redis_client:
+            raise Exception("Redis not available for memory operations")
+
+        key = arguments["key"]
+        content = arguments["content"]
+        metadata = arguments.get("metadata", {})
+
+        memory_data = {
+            "content": content,
+            "metadata": metadata,
+            "timestamp": time.time(),
+            "id": str(uuid.uuid4())
+        }
+
+        self.redis_client.set(f"memory:{key}", json.dumps(memory_data))
+        return f"Memory stored with key: {key}"
+
+    async def _handle_retrieve_memory(self, arguments: Dict[str, Any]) -> str:
+        """Handle memory retrieval requests."""
+        if not self.redis_client:
+            raise Exception("Redis not available for memory operations")
+
+        key = arguments["key"]
+        memory_data = self.redis_client.get(f"memory:{key}")
+
+        if memory_data:
+            return memory_data
+        else:
+            return json.dumps({"error": f"No memory found for key: {key}"})
+
+    async def _handle_search_memory(self, arguments: Dict[str, Any]) -> str:
+        """Handle memory search requests."""
+        if not self.redis_client:
+            raise Exception("Redis not available for memory operations")
+
+        query = arguments["query"]
+        limit = arguments.get("limit", 10)
+
+        # Simple search implementation - could be enhanced with vector similarity
+        pattern = "memory:*"
+        keys = self.redis_client.keys(pattern)
+
+        results = []
+        for key in keys[:limit]:
+            memory_data = self.redis_client.get(key)
+            if memory_data:
+                data = json.loads(memory_data)
+                if query.lower() in data["content"].lower():
+                    results.append({
+                        "key": key.replace("memory:", ""),
+                        "content": data["content"],
+                        "metadata": data.get("metadata", {}),
+                        "timestamp": data.get("timestamp")
+                    })
+
+        return json.dumps({"results": results, "query": query, "total": len(results)})
+
+    def _update_metrics(self, response_time: float):
+        """Update performance metrics."""
+        # Update average response time
+        total_requests = self.metrics["total_requests"]
+        current_avg = self.metrics["average_response_time"]
+        self.metrics["average_response_time"] = (
+            (current_avg * (total_requests - 1) + response_time) / total_requests
+        )
+
+    def get_server(self) -> Server:
+        """Get the MCP server instance."""
+        return self.server

@@ -40,6 +40,7 @@ option(GEMMA_BUILD_FUNCTIONAL_TESTS "Build functional tests" ON)
 option(GEMMA_BUILD_MCP_TESTS "Build MCP protocol tests" ON)
 option(GEMMA_ENABLE_TEST_COVERAGE "Enable test coverage reporting" OFF)
 option(GEMMA_ENABLE_MEMORY_TESTING "Enable memory testing tools" OFF)
+option(GEMMA_PRINT_BACKEND_INCLUDE_HINTS "Print helpful backend include path hints" ON)
 
 # Find required packages
 find_package(Threads REQUIRED)
@@ -201,6 +202,36 @@ if(GEMMA_BUILD_INTEGRATION_TESTS)
     create_test_executable(test_end_to_end
         integration/test_end_to_end.cpp
     )
+
+    # Newly extracted focused workflow tests
+    create_test_executable(test_model_inference_workflow
+        integration/test_model_inference_workflow.cpp
+    )
+
+    create_test_executable(test_backend_switching_workflow
+        integration/test_backend_switching_workflow.cpp
+    )
+
+    create_test_executable(test_mcp_server_workflow
+        integration/test_mcp_server_workflow.cpp
+    )
+
+    create_test_executable(test_batch_processing_workflow
+        integration/test_batch_processing_workflow.cpp
+    )
+
+    create_test_executable(test_error_recovery_workflow
+        integration/test_error_recovery_workflow.cpp
+    )
+
+
+    create_test_executable(test_system_metrics_workflow
+        integration/test_system_metrics_workflow.cpp
+    )
+
+    create_test_executable(test_configuration_update_workflow
+        integration/test_configuration_update_workflow.cpp
+    )
     
     create_test_executable(test_backend_switching
         integration/test_backend_switching.cpp
@@ -218,10 +249,26 @@ if(GEMMA_BUILD_INTEGRATION_TESTS)
     add_custom_target(integration_tests
         DEPENDS
             test_end_to_end
+            test_model_inference_workflow
+            test_backend_switching_workflow
+            test_mcp_server_workflow
+            test_batch_processing_workflow
+            test_error_recovery_workflow
+            test_system_metrics_workflow
+            test_configuration_update_workflow
             test_backend_switching
             test_session_persistence
             test_mcp_server
     )
+endif()
+
+# MCP protocol validation / verification tests (schema-level, roundtrip, etc.)
+if(GEMMA_BUILD_MCP_TESTS)
+    message(STATUS "Building MCP validation tests")
+    create_test_executable(test_mcp_validation
+        mcp/test_mcp_validation.cpp
+    )
+    add_custom_target(mcp_tests DEPENDS test_mcp_validation)
 endif()
 
 # Performance Tests (Benchmarks)
@@ -316,20 +363,22 @@ add_custom_target(test_all
     DEPENDS
         $<$<BOOL:${GEMMA_BUILD_UNIT_TESTS}>:unit_tests>
         $<$<BOOL:${GEMMA_BUILD_INTEGRATION_TESTS}>:integration_tests>
+    $<$<BOOL:${GEMMA_BUILD_MCP_TESTS}>:mcp_tests>
 )
 
 add_custom_target(test_quick
     DEPENDS
         $<$<BOOL:${GEMMA_BUILD_UNIT_TESTS}>:test_session_manager>
         $<$<BOOL:${GEMMA_BUILD_UNIT_TESTS}>:test_mcp_protocol>
+        $<$<BOOL:${GEMMA_BUILD_MCP_TESTS}>:test_mcp_validation>
     COMMENT "Running quick test suite"
 )
 
 # Performance benchmark target
-add_custom_target(benchmarks
+add_custom_target(test_benchmarks
     DEPENDS
         $<$<BOOL:${GEMMA_BUILD_PERFORMANCE_TESTS}>:performance_tests>
-    COMMENT "Building all benchmarks"
+    COMMENT "Building all test benchmarks"
 )
 
 # Test execution helpers
@@ -373,6 +422,11 @@ if(MSVC OR XCODE)
     # Integration tests folder
     set_target_properties(test_end_to_end test_backend_switching test_session_persistence test_mcp_server
         PROPERTIES FOLDER "Tests/Integration")
+    set_target_properties(test_model_inference_workflow test_backend_switching_workflow test_mcp_server_workflow
+        PROPERTIES FOLDER "Tests/Integration/Workflows")
+    set_target_properties(test_batch_processing_workflow test_error_recovery_workflow
+        test_system_metrics_workflow test_configuration_update_workflow
+        PROPERTIES FOLDER "Tests/Integration/Workflows")
     
     # Performance tests folder
     set_target_properties(benchmark_backends benchmark_session_ops benchmark_inference
@@ -390,6 +444,7 @@ message(STATUS "  Unit Tests:        ${GEMMA_BUILD_UNIT_TESTS}")
 message(STATUS "  Integration Tests: ${GEMMA_BUILD_INTEGRATION_TESTS}")
 message(STATUS "  Performance Tests: ${GEMMA_BUILD_PERFORMANCE_TESTS}")
 message(STATUS "  Backend Tests:     ${GEMMA_BUILD_BACKEND_TESTS}")
+message(STATUS "  MCP Tests:         ${GEMMA_BUILD_MCP_TESTS}")
 message(STATUS "  Test Coverage:     ${GEMMA_ENABLE_TEST_COVERAGE}")
 message(STATUS "  Memory Testing:    ${GEMMA_ENABLE_MEMORY_TESTING}")
 message(STATUS "")
@@ -418,3 +473,59 @@ set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Comprehensive test suite for Gemma.cpp")
 set(CPACK_GENERATOR "ZIP")
 include(CPack)
+
+# -----------------------------------------------------------------------------
+# Test Labeling Section
+# -----------------------------------------------------------------------------
+# Provide stable labels for CI filtering. Only set labels for tests that exist.
+function(_label_if_exists test_name labels)
+    if(TARGET ${test_name})
+        set_tests_properties(${test_name} PROPERTIES LABELS "${labels}")
+    endif()
+endfunction()
+
+_label_if_exists(test_end_to_end                "integration;full;smoke")
+_label_if_exists(test_model_inference_workflow  "integration;workflow;inference")
+_label_if_exists(test_backend_switching_workflow "integration;workflow;backend")
+_label_if_exists(test_mcp_server_workflow       "integration;workflow;mcp")
+_label_if_exists(test_batch_processing_workflow "integration;workflow;batch")
+_label_if_exists(test_error_recovery_workflow   "integration;workflow;error")
+_label_if_exists(test_system_metrics_workflow   "integration;workflow;metrics")
+_label_if_exists(test_configuration_update_workflow "integration;workflow;config")
+_label_if_exists(test_backend_switching         "integration;legacy;backend")
+_label_if_exists(test_session_persistence       "integration;session;persistence")
+_label_if_exists(test_mcp_server                "integration;legacy;mcp")
+_label_if_exists(test_session_manager           "unit;session")
+_label_if_exists(test_intel_backend             "unit;backend;intel")
+_label_if_exists(test_mcp_protocol              "unit;mcp;protocol")
+_label_if_exists(test_cli_commands              "unit;cli")
+_label_if_exists(test_mcp_validation            "mcp;validation;protocol")
+_label_if_exists(session_split_smoke            "session;refactor;smoke")
+
+# Provide a meta target to list labels (developer convenience)
+add_custom_target(print_test_labels
+    COMMAND ${CMAKE_CTEST_COMMAND} -N | ${CMAKE_COMMAND} -DCTEST_FILE:PATH=${CMAKE_BINARY_DIR}/CTestTestfile.cmake -P ${CMAKE_CURRENT_LIST_DIR}/../tools/PrintLabels.cmake
+    COMMENT "(Placeholder) print labels - implement PrintLabels.cmake if needed"
+)
+
+# -----------------------------------------------------------------------------
+# Backend include path hints for developers and LLM agents when things fail.
+# -----------------------------------------------------------------------------
+if(GEMMA_PRINT_BACKEND_INCLUDE_HINTS)
+    message(STATUS "-- Backend Include Path Hints (enable/disable via GEMMA_PRINT_BACKEND_INCLUDE_HINTS) --")
+    if(CUDAToolkit_FOUND)
+        message(STATUS "CUDA include dirs: ${CUDAToolkit_INCLUDE_DIRS}")
+    else()
+        message(STATUS "CUDA NOT FOUND. Typical Windows paths: C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/include ; Linux: /usr/local/cuda/include")
+    endif()
+    if(IntelSYCL_FOUND)
+        message(STATUS "Intel SYCL include dirs: ${IntelSYCL_INCLUDE_DIRS}")
+    else()
+        message(STATUS "Intel SYCL NOT FOUND. oneAPI basekit typical root (Windows): C:/Program Files (x86)/Intel/oneAPI ; Linux: /opt/intel/oneapi")
+    endif()
+    if(Vulkan_FOUND)
+        message(STATUS "Vulkan include dirs: ${Vulkan_INCLUDE_DIRS}")
+    else()
+        message(STATUS "Vulkan NOT FOUND. Windows SDK path example: C:/VulkanSDK/<ver>/Include ; Linux package: /usr/include/vulkan")
+    endif()
+endif()

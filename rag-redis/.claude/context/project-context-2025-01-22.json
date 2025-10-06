@@ -1,0 +1,230 @@
+{
+  "metadata": {
+    "timestamp": "2025-01-22T00:00:00Z",
+    "version": "1.0.0",
+    "project_name": "RAG-Redis System",
+    "context_type": "comprehensive_project_state"
+  },
+  "project_overview": {
+    "goals": [
+      "High-performance RAG system with multi-tier memory management",
+      "Native Rust implementation for sub-millisecond operations",
+      "Distributed caching with Redis",
+      "MCP protocol integration for tool communication"
+    ],
+    "key_architectural_decisions": {
+      "native_rust_mcp": "Replaced Python bridge with native Rust MCP server for performance",
+      "candle_ml": "Migrated from ONNX to Candle ML framework for better Rust integration",
+      "redis_backend": "Using Redis on port 6380 for distributed memory storage",
+      "simd_optimization": "Leveraging SIMD for vector operations"
+    },
+    "technology_stack": {
+      "language": "Rust",
+      "runtime": "Tokio async",
+      "database": "Redis",
+      "ml_framework": "Candle",
+      "protocol": "MCP (Model Context Protocol)",
+      "optimization": "SIMD vector operations"
+    },
+    "conventions": {
+      "project_structure": "Workspace-based Cargo structure",
+      "async_pattern": "async/await with Tokio",
+      "error_handling": "Result with anyhow/thiserror",
+      "testing": "Unit tests in modules, integration tests separate"
+    }
+  },
+  "current_state": {
+    "recently_implemented": [
+      "Native Rust MCP server with 7 core tools",
+      "Candle ML integration for embeddings",
+      "Functional test suite for MCP tools",
+      "5-tier memory system architecture"
+    ],
+    "work_completed": {
+      "mcp_server": "Fully functional JSON-RPC 2.0 implementation",
+      "python_bridge_archived": "Legacy Python bridge moved to .archive/",
+      "candle_integration": "Text embedding with Candle models",
+      "test_coverage": "Comprehensive unit and integration tests"
+    },
+    "known_issues": [
+      "MCP server stdio communication needs validation with Claude Desktop",
+      "Mock embedding model still in use, needs real model integration",
+      "Some unused mock code needs cleanup"
+    ],
+    "performance_metrics": {
+      "vector_operations": "Sub-millisecond",
+      "redis_port": 6380,
+      "memory_tiers": 5,
+      "connection_pooling": "Implemented with r2d2"
+    }
+  },
+  "design_decisions": {
+    "architecture": {
+      "pattern": "Modular workspace with separate MCP server",
+      "rationale": "Clean separation of concerns, easier testing and deployment"
+    },
+    "api_design": {
+      "protocol": "JSON-RPC 2.0 MCP",
+      "tools": [
+        "store_memory",
+        "retrieve_memory",
+        "search_memory",
+        "consolidate_memory",
+        "analyze_memory_patterns",
+        "get_memory_stats",
+        "clear_memory"
+      ]
+    },
+    "memory_system": {
+      "tiers": {
+        "working": "Immediate context, 10 items max",
+        "short_term": "Recent interactions, 100 items",
+        "long_term": "Consolidated facts, 10K items",
+        "episodic": "Event sequences with timestamps",
+        "semantic": "Graph-based concept relationships"
+      }
+    },
+    "security": {
+      "credentials": "Environment-based configuration",
+      "validation": "Input sanitization on all MCP calls",
+      "access": "No direct Redis exposure"
+    }
+  },
+  "code_patterns": {
+    "conventions": {
+      "naming": "snake_case for functions, PascalCase for types",
+      "modules": "Feature-based organization",
+      "imports": "Grouped by standard/external/internal"
+    },
+    "patterns": {
+      "state_management": "Arc<RwLock<T>> for shared state",
+      "abstractions": "Trait-based for extensibility",
+      "async_handling": "Tokio with proper cancellation",
+      "serialization": "Serde with derive macros"
+    },
+    "testing": {
+      "unit_tests": "In-module #[cfg(test)] blocks",
+      "integration_tests": "Separate tests/ directory",
+      "mocking": "Trait-based test doubles",
+      "coverage": "Target 85% minimum"
+    },
+    "error_handling": {
+      "library": "thiserror for custom errors",
+      "propagation": "anyhow for application errors",
+      "logging": "tracing with structured logs"
+    }
+  },
+  "agent_coordination_history": {
+    "agents_involved": [
+      {
+        "name": "rust-pro",
+        "contributions": [
+          "Implemented native MCP server",
+          "Integrated Candle ML framework",
+          "Set up workspace structure"
+        ]
+      },
+      {
+        "name": "deployment-engineer",
+        "contributions": [
+          "Archived Python bridge",
+          "Updated deployment configurations",
+          "Cleaned up legacy dependencies"
+        ]
+      },
+      {
+        "name": "test-automator",
+        "contributions": [
+          "Created functional test suites",
+          "Implemented MCP tool tests",
+          "Set up CI/CD pipelines"
+        ]
+      },
+      {
+        "name": "architect-reviewer",
+        "contributions": [
+          "Designed migration architecture",
+          "Reviewed system design",
+          "Validated performance requirements"
+        ]
+      }
+    ],
+    "dependencies": {
+      "core": "rag-redis-system workspace",
+      "mcp_server": "mcp-server module",
+      "redis": "Redis server on port 6380",
+      "models": "Candle embedding models"
+    }
+  },
+  "future_roadmap": {
+    "planned_features": [
+      "GPU acceleration for Candle embeddings",
+      "Real embedding model integration",
+      "Advanced memory consolidation strategies",
+      "Multi-model support"
+    ],
+    "improvements": [
+      "Complete MCP stdio validation with Claude Desktop",
+      "Optimize Candle model loading time",
+      "Implement caching for embeddings",
+      "Add memory visualization tools"
+    ],
+    "technical_debt": [
+      "Remove unused mock embedding code",
+      "Refactor test utilities",
+      "Update documentation",
+      "Clean up archived Python code"
+    ],
+    "performance_targets": {
+      "embedding_generation": "<100ms",
+      "memory_retrieval": "<10ms",
+      "consolidation": "<1s for 1000 items"
+    }
+  },
+  "key_files_and_locations": {
+    "project_root": "C:\\codedev\\llm\\rag-redis",
+    "mcp_server": "rag-redis-system/mcp-server/",
+    "core_system": "rag-redis-system/src/",
+    "archived_python": ".archive/python-mcp-bridge/",
+    "configuration": {
+      "workspace": "Cargo.toml",
+      "mcp_server_config": "mcp-server/Cargo.toml",
+      "test_config": "tests/"
+    },
+    "runtime": {
+      "redis_port": 6380,
+      "mcp_stdio": "Standard input/output",
+      "log_level": "INFO"
+    }
+  },
+  "integration_points": {
+    "claude_desktop": {
+      "status": "Pending validation",
+      "protocol": "MCP over stdio",
+      "config_location": "Claude Desktop settings"
+    },
+    "redis": {
+      "status": "Active",
+      "port": 6380,
+      "databases": "5 (one per memory tier)"
+    },
+    "parent_project": {
+      "location": "C:\\codedev\\llm\\stats",
+      "integration": "Via MCP protocol"
+    }
+  },
+  "session_notes": {
+    "last_major_change": "Migration from Python to native Rust MCP server",
+    "critical_decisions": [
+      "Use Candle instead of ONNX for better Rust integration",
+      "Implement all 7 MCP tools in native Rust",
+      "Archive Python bridge rather than maintain dual implementation"
+    ],
+    "validation_status": {
+      "unit_tests": "Passing",
+      "integration_tests": "Passing",
+      "mcp_validation": "Pending Claude Desktop test",
+      "performance": "Meeting targets"
+    }
+  }
+}

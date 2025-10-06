@@ -6,81 +6,78 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 gemma.cpp is a lightweight C++ inference engine for Google's Gemma foundation models, designed for research and experimentation. It provides minimalist implementations of Gemma-2, Gemma-3, Griffin/RecurrentGemma, and PaliGemma-2 (vision-language) models, prioritizing simplicity and directness over full generality.
 
+## Build Strategy
+
+The project uses a simplified single-directory build approach (`build/`) with dependencies managed through a combination of vcpkg and GitHub submodules. CPU-first development with GPU backends as future enhancements.
+
 ## Build and Run Commands
 
 ### Building the Project
 
-**Windows (CMake 4.1.1 available at /c/Program Files/CMake/bin/cmake)**:
-```bash
-# Set PATH for CMake (if not already in PATH)
-export PATH="/c/Program Files/CMake/bin:$PATH"
+**Windows (Simplified Build)**:
+```batch
+:: Set up environment (if using vcpkg)
+set VCPKG_ROOT=C:\codedev\vcpkg
 
-# Configure and build (Visual Studio 2022 generator recommended)
+:: Basic CPU build (currently working)
 cmake -B build -G "Visual Studio 17 2022" -T v143
 cmake --build build --config Release -j 4
 
-# Alternative: Try presets (may fail with ClangCL)
-cmake --preset windows
-cmake --build --preset windows -j 4
+:: With vcpkg for some dependencies (optional)
+cmake -B build -G "Visual Studio 17 2022" -T v143 ^
+  -DCMAKE_TOOLCHAIN_FILE=C:\codedev\vcpkg\scripts\buildsystems\vcpkg.cmake
+cmake --build build --config Release -j 4
 ```
 
 **Unix/Linux/macOS**:
 ```bash
-# Configure and build
+# Standard build
+cmake -B build
+cmake --build build -j $(nproc)
+
+# Or using presets
 cmake --preset make
 cmake --build --preset make -j $(nproc)
-
-# Alternative: Direct CMake approach
-cmake -B build
-cd build && make -j$(nproc)
-```
-
-**Bazel (alternative)**:
-```bash
-bazel build -c opt --cxxopt=-std=c++20 :gemma
 ```
 
 ### Running the Application
 
-**Basic execution** (requires model weights from /c/codedev/llm/.models):
-```bash
-./build/gemma \
-  --tokenizer /c/codedev/llm/.models/tokenizer.spm \
-  --weights /c/codedev/llm/.models/gemma2-2b-it-sfp.sbs
-```
+**Working Model Paths**:
+- **2B Model**: `C:\codedev\llm\.models\gemma-gemmacpp-2b-it-v3\2b-it.sbs`
+- **4B Model**: `C:\codedev\llm\.models\gemma-3-gemmaCpp-3.0-4b-it-sfp-v1\4b-it-sfp.sbs`
+- **Tokenizers**: Located in respective model directories
 
-**With single-file format** (newer weights with embedded tokenizer):
-```bash
-./build/gemma --weights /c/codedev/llm/.models/gemma2-2b-it-sfp-single.sbs
-```
+**Basic execution**:
+```batch
+:: 2B model (tested and working)
+.\build\Release\gemma.exe ^
+  --tokenizer C:\codedev\llm\.models\gemma-gemmacpp-2b-it-v3\tokenizer.spm ^
+  --weights C:\codedev\llm\.models\gemma-gemmacpp-2b-it-v3\2b-it.sbs
 
-**PaliGemma (vision-language model)**:
-```bash
-./build/gemma \
-  --tokenizer /c/codedev/llm/.models/paligemma_tokenizer.model \
-  --weights /c/codedev/llm/.models/paligemma2-3b-mix-224-sfp.sbs \
-  --image_file image.ppm
+:: 4B model (SFP format, better performance)
+.\build\Release\gemma.exe ^
+  --tokenizer C:\codedev\llm\.models\gemma-3-gemmaCpp-3.0-4b-it-sfp-v1\tokenizer.spm ^
+  --weights C:\codedev\llm\.models\gemma-3-gemmaCpp-3.0-4b-it-sfp-v1\4b-it-sfp.sbs
+
+:: Interactive mode (default)
+.\build\Release\gemma.exe --weights [model.sbs] --tokenizer [tokenizer.spm]
 ```
 
 ### Development Commands
 
 **Run benchmarks**:
-```bash
-./build/single_benchmark --weights [model.sbs] --tokenizer [tokenizer.spm]
-./build/benchmarks --weights [model.sbs] --tokenizer [tokenizer.spm]
+```batch
+.\build\Release\single_benchmark.exe ^
+  --weights C:\codedev\llm\.models\gemma-gemmacpp-2b-it-v3\2b-it.sbs ^
+  --tokenizer C:\codedev\llm\.models\gemma-gemmacpp-2b-it-v3\tokenizer.spm
 ```
 
-**Convert weights to single-file format**:
-```bash
-./build/migrate_weights \
-  --tokenizer [tokenizer.spm] \
-  --weights [input.sbs] \
+**Convert weights** (if needed):
+```batch
+.\build\Release\migrate_weights.exe ^
+  --tokenizer [tokenizer.spm] ^
+  --weights [input.sbs] ^
   --output_weights [output-single.sbs]
-```
-
-**Debug prompt interaction**:
-```bash
-./build/debug_prompt --weights [model.sbs] --tokenizer [tokenizer.spm]
 ```
 
 ## High-Level Architecture
@@ -177,23 +174,20 @@ gemma.GenerateImageTokens(runtime_config, seq_len, image, image_tokens, env);
 ## Important Configuration
 
 ### Runtime Configuration
-- `max_seq_len` - Maximum sequence length (32K typical, 128K possible)
-- `decode_qbatch_size` - Batch size for decoding
-- `prefill_tbatch_size` - Batch size for prefill
-- `temperature` - Sampling temperature
-- `top_k` - Top-K sampling parameter
+- `max_seq_len` - Maximum sequence length (default 4096)
+- `temperature` - Sampling temperature (0.7 typical)
+- `top_k` - Top-K sampling parameter (40 typical)
 
 ### Build Options
-- `BUILD_GEMMA_DLL` - Build shared library for C# interop
-- `GEMMA_ENABLE_TESTS` - Enable test suite compilation
+- Single `build/` directory for simplicity
 - `CMAKE_BUILD_TYPE` - Release (default), Debug, RelWithDebInfo
+- Highway library fetched from GitHub (more reliable than vcpkg)
 
 ### Performance Tips
-1. Use `-sfp` models for 2x speed improvement over BF16
+1. Use SFP format models for better performance
 2. Second/third queries are faster due to auto-tuning
-3. Set laptop to performance mode (not battery saving)
+3. Set Windows to performance mode (not battery saving)
 4. Close CPU-intensive applications
-5. Warm-up period expected on macOS
 
 ## Directory-Specific Notes
 
@@ -205,93 +199,87 @@ gemma.GenerateImageTokens(runtime_config, seq_len, image, image_tokens, env);
 
 The project follows data-oriented design principles, prioritizes small batch latency, and maintains a portable CPU baseline while supporting research experimentation.
 
-## Enhancement Roadmap
+## Troubleshooting
 
-### Stage 1: Foundation & Quick Wins (Weeks 1-3)
-- Fix model loading error (3221226356) with VC++ runtime
-- Implement advanced sampling (Min-P, Dynatemp, DRY, Typical)
-- Integrate vcpkg for dependency management
-- Create comprehensive testing framework
+### Common Windows Build Issues
 
-### Stage 2: MCP Integration (Weeks 4-6)
-- Integrate cpp-mcp SDK for Model Context Protocol
-- Implement core tools (generate_text, count_tokens, model_info)
-- Add HTTP/WebSocket transport via Crow
-- Create plugin architecture for extensibility
-
-### Stage 3: Hardware Acceleration (Weeks 7-10)
-- Intel GPU/NPU via SYCL and oneAPI
-- NVIDIA CUDA with cuBLAS/cuDNN
-- Cross-platform Vulkan support
-- Expected speedup: 5-50x
-
-### Stage 4: Advanced Features (Weeks 11-14)
-- Mirostat sampling (v1 & v2)
-- Grammar-constrained generation (GBNF)
-- Speculative decoding (2-3x speedup)
-- Context window extensions (RoPE scaling)
-
-### Stage 5: Performance Optimization (Weeks 15-18)
-- Advanced quantization (AWQ/GPTQ, 50-75% memory reduction)
-- Kernel fusion (15-25% speedup)
-- Continuous batching (2-3x throughput)
-- Flash Attention implementation
-
-## Testing Strategy
-
-### Unit Tests
-- Sampling algorithms validation
-- MCP protocol compliance
-- Hardware backend verification
-- Quantization accuracy tests
-
-### Integration Tests
-- End-to-end inference validation
-- Multi-backend compatibility
-- MCP server functionality
-- Performance benchmarks
-
-### Performance Targets
-- Latency: <100ms first token on RTX 4060
-- Throughput: 100+ tokens/second on modern GPUs
-- Memory: 50% reduction via quantization
-- Quality: Maintained or improved generation
-
-## Build Configuration
-
-### New CMake Options
-```cmake
-# MCP Server support
-option(BUILD_GEMMA_MCP "Build with MCP server support" ON)
-
-# Hardware acceleration
-option(GEMMA_CUDA "Build with CUDA support" OFF)
-option(GEMMA_SYCL "Build with SYCL/oneAPI support" OFF)
-option(GEMMA_VULKAN "Build with Vulkan support" OFF)
-
-# Advanced features
-option(GEMMA_FLASH_ATTENTION "Enable Flash Attention" OFF)
-option(GEMMA_SPECULATIVE "Enable speculative decoding" OFF)
+#### CMake Configuration Errors
+**Issue**: CMake cannot find compiler or toolchain
+**Solution**:
+```batch
+:: Ensure Visual Studio 2022 Build Tools are installed
+:: Use explicit generator and toolset
+cmake -B build -G "Visual Studio 17 2022" -T v143
 ```
 
-## Dependencies
+#### Model Loading Errors
+**Issue**: Error code 3221226356 when loading models
+**Solution**: Install Visual C++ Redistributables or build in Release mode
 
-### Required
-- C++20 compiler (MSVC 2022, GCC 11+, Clang 14+)
-- CMake 4.1.1+ (available at `/c/Program Files/CMake/bin/cmake`)
-- Highway SIMD library
-- nlohmann/json (for MCP)
+#### Highway Library Issues
+**Issue**: vcpkg Highway version incompatible
+**Solution**: Let CMake fetch from GitHub (FetchContent fallback)
 
-### Optional
-- Intel oneAPI (for SYCL backend)
-- CUDA Toolkit 12+ (for NVIDIA GPUs)
-- Vulkan SDK (for cross-platform GPU)
-- Crow framework (for HTTP/WebSocket MCP)
+#### Path Issues
+**Issue**: Model files not found
+**Solution**: Use absolute Windows paths with backslashes or escape them
 
-## External References
+### Memory Issues
+- Reduce context length with `--max_seq_len 2048`
+- Use smaller models (2B instead of 4B)
+- Close other applications to free RAM
 
-### Key Repositories
-- [Intel IPEX-LLM](https://github.com/intel/ipex-llm) - Intel GPU/NPU acceleration
-- [llama.cpp](https://github.com/ggml-org/llama.cpp) - Reference implementation
-- [cpp-mcp](https://github.com/hkr04/cpp-mcp) - C++ MCP SDK
-- [TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM) - NVIDIA optimization
+## Dependency Strategy
+
+### Core Dependencies
+- **Highway**: SIMD library - fetched from GitHub via FetchContent (most reliable)
+- **SentencePiece**: Tokenization - auto-fetched via FetchContent
+- **nlohmann/json**: Optional, for future MCP support
+
+### vcpkg Integration (Optional)
+While vcpkg can be used, the project works best with FetchContent for critical dependencies:
+```cmake
+# In CMakeLists.txt
+FetchContent_Declare(highway
+  GIT_REPOSITORY https://github.com/google/highway.git
+  GIT_TAG 1.2.0
+)
+```
+
+### Future Enhancement: GPU Backends
+GPU acceleration is planned but not required for basic functionality:
+- CUDA backend for NVIDIA GPUs
+- SYCL backend for Intel GPUs/NPUs
+- Vulkan for cross-platform GPU support
+
+## Requirements
+
+### Minimum Requirements
+- **C++20 compiler**: Visual Studio 2022 with v143 toolset
+- **CMake 3.14+**: Available at `C:\Program Files\CMake\bin\cmake.exe`
+- **RAM**: 8GB minimum (16GB recommended for 4B models)
+- **Storage**: 10GB for model files
+
+### Build Tools
+- **Windows**: Visual Studio 2022 Build Tools or full IDE
+- **Linux/macOS**: GCC 11+ or Clang 14+
+
+## Project Status
+
+### Working
+- ✅ CPU inference with Highway SIMD optimization
+- ✅ 2B and 4B model support
+- ✅ Interactive prompt mode
+- ✅ Basic benchmarking tools
+- ✅ Windows native compilation
+
+### In Progress
+- 🚧 Simplified dependency management
+- 🚧 Advanced sampling methods
+- 🚧 Performance optimizations
+
+### Future Plans
+- 📋 GPU acceleration (CUDA, SYCL, Vulkan)
+- 📋 MCP server integration
+- 📋 Session management
+- 📋 Context window extensions

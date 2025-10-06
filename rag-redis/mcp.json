@@ -1,0 +1,202 @@
+{
+  "mcpServers": {
+    "rag-redis": {
+      "command": "C:\\Users\\david\\.cargo\\shared-target\\release\\mcp-server.exe",
+      "args": [],
+      "env": {
+        "REDIS_URL": "redis://127.0.0.1:6380",
+        "RUST_LOG": "info",
+        "RAG_DATA_DIR": "c:\\codedev\\llm\\rag-redis\\data\\rag",
+        "EMBEDDING_CACHE_DIR": "c:\\codedev\\llm\\rag-redis\\cache\\embeddings",
+        "LOG_DIR": "c:\\codedev\\llm\\rag-redis\\logs",
+        "VECTOR_BATCH_SIZE": "100",
+        "MEMORY_CONSOLIDATION_INTERVAL": "300",
+        "EMBEDDING_MODEL": "all-MiniLM-L6-v2"
+      },
+      "description": "High-performance RAG system with multi-tier memory management",
+      "capabilities": {
+        "tools": {
+          "ingest_document": {
+            "description": "Ingest documents with metadata and create embeddings",
+            "parameters": {
+              "content": "string",
+              "metadata": "object",
+              "model": "string (optional)"
+            }
+          },
+          "search": {
+            "description": "Semantic vector search across ingested documents",
+            "parameters": {
+              "query": "string",
+              "limit": "number (default: 10)",
+              "threshold": "number (default: 0.7)"
+            }
+          },
+          "hybrid_search": {
+            "description": "Combined vector and keyword search",
+            "parameters": {
+              "query": "string",
+              "limit": "number (default: 10)",
+              "keyword_weight": "number (default: 0.3)"
+            }
+          },
+          "research": {
+            "description": "Web research with source integration",
+            "parameters": {
+              "query": "string",
+              "sources": "array<string> (optional)",
+              "max_results": "number (default: 5)"
+            }
+          },
+          "memory_store": {
+            "description": "Store memory in multi-tier system",
+            "parameters": {
+              "content": "string",
+              "memory_type": "string (working|short_term|long_term|episodic|semantic)",
+              "importance": "number (0-1)",
+              "context_hints": "array<string> (optional)",
+              "agent_type": "string (optional)"
+            }
+          },
+          "memory_recall": {
+            "description": "Recall memories from storage",
+            "parameters": {
+              "query": "string",
+              "memory_type": "string (optional)",
+              "limit": "number (default: 10)",
+              "agent_type": "string (optional)"
+            }
+          },
+          "health_check": {
+            "description": "System health and metrics",
+            "parameters": {
+              "include_metrics": "boolean (default: false)"
+            }
+          },
+          "project_context_save": {
+            "description": "Save project context and state",
+            "parameters": {
+              "project_id": "string",
+              "context": "object",
+              "metadata": "object (optional)"
+            }
+          },
+          "project_context_load": {
+            "description": "Load project context and state",
+            "parameters": {
+              "project_id": "string",
+              "include_memories": "boolean (default: true)"
+            }
+          },
+          "agent_memory_store": {
+            "description": "Store agent-specific contextualized memory",
+            "parameters": {
+              "content": "string",
+              "agent_type": "string (claude|gemini|gpt4|gemma|llama)",
+              "context_hints": "array<string>",
+              "importance": "number (0-1)"
+            }
+          },
+          "agent_memory_retrieve": {
+            "description": "Retrieve memories formatted for specific agent",
+            "parameters": {
+              "query": "string",
+              "agent_type": "string",
+              "limit": "number (default: 10)"
+            }
+          },
+          "memory_digest": {
+            "description": "Generate memory digest for agent",
+            "parameters": {
+              "agent_type": "string",
+              "topic": "string (optional)",
+              "max_memories": "number (default: 20)"
+            }
+          }
+        }
+      },
+      "memory_tiers": {
+        "working": {
+          "capacity": 100,
+          "ttl": "15m",
+          "description": "Immediate context for current task"
+        },
+        "short_term": {
+          "capacity": 1000,
+          "ttl": "1h",
+          "description": "Recent interactions and temporary state"
+        },
+        "long_term": {
+          "capacity": 10000,
+          "ttl": "30d",
+          "description": "Consolidated knowledge and facts"
+        },
+        "episodic": {
+          "capacity": 5000,
+          "ttl": "7d",
+          "description": "Temporal sequences and events"
+        },
+        "semantic": {
+          "capacity": 50000,
+          "ttl": null,
+          "description": "Knowledge graph and concept relationships"
+        }
+      },
+      "performance": {
+        "startup_time": "500ms",
+        "memory_usage": "200MB",
+        "vector_search": "1ms/10k vectors",
+        "embedding_generation": "50ms",
+        "redis_roundtrip": "2ms"
+      },
+      "features": {
+        "simsimd": true,
+        "compression": true,
+        "binary_serialization": true,
+        "connection_pooling": true,
+        "lazy_initialization": true,
+        "memory_archival": true,
+        "agent_templates": true,
+        "project_context": true
+      }
+    }
+  },
+  "globalSettings": {
+    "redisUrl": "redis://127.0.0.1:6380",
+    "logLevel": "info",
+    "dataDirectory": "c:\\codedev\\llm\\rag-redis\\data",
+    "cacheDirectory": "c:\\codedev\\llm\\rag-redis\\cache"
+  },
+  "agentConfigurations": {
+    "claude": {
+      "contextWindow": 200000,
+      "memoryFormat": "markdown",
+      "digestSize": 50,
+      "compatibleWith": ["gpt4"]
+    },
+    "gemini": {
+      "contextWindow": 1000000,
+      "memoryFormat": "structured",
+      "digestSize": 100,
+      "compatibleWith": ["gemma"]
+    },
+    "gpt4": {
+      "contextWindow": 128000,
+      "memoryFormat": "json",
+      "digestSize": 40,
+      "compatibleWith": ["claude"]
+    },
+    "gemma": {
+      "contextWindow": 8000,
+      "memoryFormat": "plain",
+      "digestSize": 20,
+      "compatibleWith": ["gemini"]
+    },
+    "llama": {
+      "contextWindow": 32000,
+      "memoryFormat": "markdown",
+      "digestSize": 30,
+      "compatibleWith": []
+    }
+  }
+}

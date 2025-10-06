@@ -1,0 +1,97 @@
+name: CI Build
+
+on:
+  push:
+    branches: [ main, minimal-workflow, feature/** ]
+  pull_request:
+    branches: [ main, minimal-workflow ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }} / ${{ matrix.cfg }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        cfg: [RelWithSymbols, FastDebug]
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      # Reduce noisy output for faster logs
+      VCPKG_FEATURE_FLAGS: manifests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Set up MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Cache CMake build (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: build-${{ runner.os }}-${{ matrix.cfg }}-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            build-${{ runner.os }}-${{ matrix.cfg }}-
+            build-${{ runner.os }}-
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.cfg }}
+          -DGEMMA_ENABLE_AUTO_BACKENDS=OFF
+          -DGEMMA_PREFER_SYSTEM_DEPS=ON
+          -DGEMMA_ENABLE_SYCL=OFF
+          -DGEMMA_REQUIRE_HWY_CONTRIB=OFF
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.cfg }} -- -k 0
+
+      - name: Print Dependency Summary
+        if: always()
+        run: |
+          echo '--- Dependency Summary (grep) ---'
+          find build -maxdepth 2 -type f -name CMakeCache.txt 2>/dev/null || true
+          if [ "${{ runner.os }}" = "Linux" ]; then grep -i "highway" build/CMakeCache.txt || true; fi
+        shell: bash
+        if: runner.os == 'Linux'
+
+      - name: Upload compile_commands.json (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile-commands-${{ matrix.cfg }}
+          path: build/compile_commands.json
+          if-no-files-found: ignore
+
+  # Optional SYCL probe (Windows only) - does not fail build if missing toolchain
+  sycl-probe:
+    name: SYCL Probe (Windows)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Attempt Configure with SYCL
+        run: >-
+          cmake -S . -B build-sycl
+          -DCMAKE_BUILD_TYPE=RelWithSymbols
+          -DGEMMA_ENABLE_SYCL=ON
+          -DGEMMA_VERBOSE_BACKEND_DIAGNOSTICS=ON
+          -DGEMMA_ENABLE_AUTO_BACKENDS=OFF
+      - name: Show SYCL Log
+        run: |
+          Get-Content build-sycl/CMakeCache.txt -ErrorAction SilentlyContinue | Select-String -Pattern "SYCL","oneAPI" || echo "No cache yet"

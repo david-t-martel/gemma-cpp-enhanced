@@ -13,9 +13,7 @@
 #
 # This module also creates the following targets:
 # Intel::SYCL - The Intel SYCL library target
-
-cmake_minimum_required(VERSION 3.20)
-
+# (Removed module-level cmake_minimum_required to avoid overriding top-level)
 # Check for oneAPI environment variables
 set(ONEAPI_ROOT_HINTS
     $ENV{ONEAPI_ROOT}
@@ -23,6 +21,14 @@ set(ONEAPI_ROOT_HINTS
     $ENV{MKLROOT}/../../..
     $ENV{SETVARS_COMPLETED}
 )
+
+# Prepend explicitly provided roots so they take precedence
+if(DEFINED GEMMA_ONEAPI_ROOT AND NOT "${GEMMA_ONEAPI_ROOT}" STREQUAL "")
+    list(INSERT ONEAPI_ROOT_HINTS 0 "${GEMMA_ONEAPI_ROOT}")
+endif()
+if(DEFINED oneapi_root AND NOT "${oneapi_root}" STREQUAL "")
+    list(INSERT ONEAPI_ROOT_HINTS 0 "${oneapi_root}")
+endif()
 
 # Default installation paths
 if(WIN32)
@@ -88,7 +94,7 @@ if(IntelSYCL_ROOT)
 
     # Find SYCL library
     if(WIN32)
-        set(SYCL_LIB_NAMES sycl7.lib sycl.lib)
+        set(SYCL_LIB_NAMES sycl8.lib sycl7.lib sycl.lib)
     else()
         set(SYCL_LIB_NAMES libsycl.so libsycl.a)
     endif()

@@ -33,17 +33,15 @@
 
 // Platform-specific headers
 #ifdef _WIN32
-#include <windows.h>
 #ifndef NOMINMAX
-#define NOMINMAX
+#define NOMINMAX  // Prevent windows.h from defining min/max macros
 #endif
+#include <windows.h>
 #endif
 
 // Highway SIMD library (heavily templated, slow to compile)
 #include "hwy/aligned_allocator.h"
 #include "hwy/base.h"
-#include "hwy/contrib/sort/order.h"
-#include "hwy/contrib/sort/vqsort.h"
 #include "hwy/detect_targets.h"
 #include "hwy/foreach_target.h"
 #include "hwy/highway.h"

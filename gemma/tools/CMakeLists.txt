@@ -14,17 +14,17 @@ else()
 endif()
 
 # Add other tools if they exist
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/CMakeLists.txt)
     message(STATUS "Adding benchmark tools")
     add_subdirectory(benchmarks)
 endif()
 
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/model_converter)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/model_converter AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/model_converter/CMakeLists.txt)
     message(STATUS "Adding model converter tools")
     add_subdirectory(model_converter)
 endif()
 
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/mcp_server)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/mcp_server AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/mcp_server/CMakeLists.txt)
     message(STATUS "Adding MCP server tools")
     add_subdirectory(mcp_server)
 endif()
