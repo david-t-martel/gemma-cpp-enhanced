@@ -86,7 +86,7 @@ The **hybrid Python-Rust LLM chatbot system** has been successfully refactored a
 ### 1. Set Up Hugging Face Token
 ```bash
 # Token is already in .env file
-export HF_TOKEN="REDACTED_HF_TOKEN"
+export HF_TOKEN="<your-huggingface-token>"
 
 # Login to Hugging Face
 uv run huggingface-cli login --token $HF_TOKEN

@@ -144,8 +144,8 @@ tests/                            [✅ COMPREHENSIVE]
 ### Environment Variables (.env)
 ```bash
 # Authentication (CONFIGURED)
-HF_TOKEN="REDACTED_HF_TOKEN"
-HUGGINGFACE_TOKEN="REDACTED_HF_TOKEN"
+HF_TOKEN="<your-huggingface-token>"
+HUGGINGFACE_TOKEN="<your-huggingface-token>"
 
 # Google Cloud (CONFIGURED)
 GOOGLE_APPLICATION_CREDENTIALS="C:\Users\david\.auth\business\service-account-key.json"
