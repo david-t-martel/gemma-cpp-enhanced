@@ -127,6 +127,7 @@ models_cache/
 .Trashes
 ehthumbs.db
 Thumbs.db
+nul
 
 # Cache directories
 cache/
