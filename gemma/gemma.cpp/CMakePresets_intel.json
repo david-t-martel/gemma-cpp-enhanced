@@ -1,0 +1,110 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "intel-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "SPM_ENABLE_SHARED": "OFF",
+        "SPM_ABSL_PROVIDER": "module"
+      }
+    },
+    {
+      "name": "intel-mkl",
+      "inherits": "intel-base",
+      "displayName": "Intel MKL Optimized",
+      "description": "Build with Intel MKL for optimized BLAS operations",
+      "cacheVariables": {
+        "GEMMA_USE_INTEL_MKL": "ON",
+        "GEMMA_USE_INTEL_TBB": "ON",
+        "GEMMA_ENABLE_LTO": "ON",
+        "GEMMA_ENABLE_PCH": "ON"
+      }
+    },
+    {
+      "name": "intel-full",
+      "inherits": "intel-base",
+      "displayName": "Intel OneAPI Full",
+      "description": "Build with all Intel OneAPI optimizations",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "icx",
+        "CMAKE_CXX_COMPILER": "icpx",
+        "GEMMA_USE_INTEL_ONEAPI": "ON",
+        "GEMMA_USE_INTEL_MKL": "ON",
+        "GEMMA_USE_INTEL_IPP": "ON",
+        "GEMMA_USE_INTEL_TBB": "ON",
+        "GEMMA_USE_INTEL_DNNL": "ON",
+        "GEMMA_ENABLE_LTO": "ON",
+        "GEMMA_ENABLE_PCH": "ON"
+      }
+    },
+    {
+      "name": "intel-sycl",
+      "inherits": "intel-full",
+      "displayName": "Intel SYCL GPU",
+      "description": "Build with Intel SYCL for GPU offload",
+      "cacheVariables": {
+        "GEMMA_USE_INTEL_SYCL": "ON"
+      }
+    },
+    {
+      "name": "intel-debug",
+      "inherits": "intel-mkl",
+      "displayName": "Intel Debug",
+      "description": "Debug build with Intel optimizations",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "intel-profile",
+      "inherits": "intel-full",
+      "displayName": "Intel Profiling",
+      "description": "Build optimized for Intel VTune profiling",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_FLAGS": "-g -fno-omit-frame-pointer"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "intel-mkl-build",
+      "configurePreset": "intel-mkl",
+      "displayName": "Build with Intel MKL",
+      "description": "Build using Intel MKL optimizations",
+      "jobs": 0
+    },
+    {
+      "name": "intel-full-build",
+      "configurePreset": "intel-full",
+      "displayName": "Build with Full Intel OneAPI",
+      "description": "Build using all Intel OneAPI optimizations",
+      "jobs": 0
+    },
+    {
+      "name": "intel-sycl-build",
+      "configurePreset": "intel-sycl",
+      "displayName": "Build with Intel SYCL",
+      "description": "Build with GPU offload support",
+      "jobs": 0
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "intel-test",
+      "configurePreset": "intel-mkl",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      }
+    }
+  ]
+}
