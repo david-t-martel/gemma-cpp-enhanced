@@ -18,14 +18,14 @@ dependencies = [
     "evaluate",
     "colorama",
     "boto3",
-    "protobuf==4.25.3",
+    "protobuf==4.25.8",
     "sglang",
     "ollama",
     "requests>=2.25.0",
     "sentence-transformers>=3.0.0",
     # Pin transformers below 4.46: 4.46.0 introduced Python 3.10-only typing (PEP 604) and
     # breaks our Python 3.9 test matrix when pulled in by sentence-transformers.
-    "transformers<4.46",
+    "transformers<4.58",
     "openai>=1.0.0",
     # PDF parsing dependencies - essential for document processing
     "PyPDF2>=3.0.0",
