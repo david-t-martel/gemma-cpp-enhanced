@@ -218,3 +218,19 @@ compile_commands-full.json
 **/Testing/**/CTestCostData.txt
 **/Testing/**/LastTest.log
 
+.archive/
+build_wsl_root/
+
+# Python virtual environment
+.venv/
+venv/
+ENV/
+
+# Python type checking cache
+.mypy_cache/
+
+# Tool-specific directories
+.serena/
+.taskmaster/
+.genkit/
+vcpkg_installed/

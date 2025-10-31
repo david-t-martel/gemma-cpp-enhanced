@@ -5,6 +5,8 @@
 
 use std::collections::HashMap;
 
+pub mod error;
+
 // Module declarations
 pub mod cache;
 pub mod document_pipeline;
@@ -60,17 +62,17 @@ impl RagSystem {
     /// Create a new RAG system instance
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
-            vector_store: VectorStore::new()?,
-            document_processor: DocumentProcessor::new(),
-            redis_manager: RedisManager::new()?,
-            research_client: ResearchClient::new(),
+            vector_store: VectorStore::new(Default::default())?,
+            document_processor: DocumentProcessor::new(None),
+            redis_manager: RedisManager::new(Default::default()).unwrap(),
+            research_client: ResearchClient::new(Default::default()).unwrap(),
         })
     }
 
     /// Process a query through the RAG pipeline
     pub async fn process_query(&self, query: &str) -> Result<String, Box<dyn std::error::Error>> {
         // Implement core RAG logic here
-        let _embeddings = self.vector_store.search(query, 5).await?;
+        let _embeddings = self.vector_store.search(&[0.0], 5, false).await?;
         let response = format!("Processed query: {}", query);
         Ok(response)
     }

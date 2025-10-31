@@ -86,20 +86,25 @@ set(SYCL_SOURCES
 # Create SYCL backend library
 add_library(gemma_sycl_backend ${SYCL_SOURCES})
 
-# Set C++ standard for SYCL compilation
+# Set C++ standard for SYCL compilation and explicitly disable /MP
+# /MP cannot be used with -fsycl offloading
+string(REGEX REPLACE "/MP[0-9]*" "" _SYCL_SAFE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+
 set_target_properties(gemma_sycl_backend PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
+    COMPILE_FLAGS "${_SYCL_SAFE_CXX_FLAGS}"
 )
 
-# SYCL compile options
+# SYCL compile options (no /MP allowed with -fsycl)
 target_compile_options(gemma_sycl_backend PRIVATE
     -fsycl                          # Enable SYCL compilation
     -fsycl-targets=spir64           # Target SPIR-V for broad compatibility
     -O3                             # Optimization level
     -ffast-math                     # Fast math optimizations
     -fno-sycl-early-optimizations   # Prevent early optimizations that may break
+    /MD                             # Use dynamic runtime (required for SYCL)
     $<$<CONFIG:Debug>:-g -fsycl-instrument-device-code>  # Debug info
     $<$<CONFIG:Release>:-DNDEBUG>   # Release optimizations
 )
@@ -122,12 +127,8 @@ endif()
 # Windows-specific Intel GPU optimizations
 if(WIN32 AND INTEL_ONEAPI_ROOT)
     target_compile_options(gemma_sycl_backend PRIVATE
-        # Enable Intel GPU runtime optimizations
-        -fiopenmp-simd                  # SIMD optimizations
-        -qopenmp                        # OpenMP support for hybrid execution
-        # Intel-specific optimizations
+        # Intel-specific optimizations (OpenMP flags removed - incompatible with SYCL)
         -diag-disable=remark            # Disable verbose remarks
-        -fp-model=fast                  # Fast floating point model
     )
     
     # Add Intel GPU libraries path
@@ -269,12 +270,6 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Intel|IntelLLVM")
         -Wno-unknown-pragmas             # Ignore unknown pragmas
         -diag-disable=2196               # Disable Intel-specific warning
     )
-
-    # Intel GPU specific optimizations
-    target_compile_options(gemma_sycl_backend PRIVATE
-        -fiopenmp                        # Enable OpenMP for CPU fallback
-        -xHost                           # Optimize for current CPU
-    )
 endif()
 
 # Windows specific settings
@@ -378,7 +373,6 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     )
     target_compile_options(gemma_sycl_backend PRIVATE
         -O3                              # Maximum optimization
-        -march=native                    # Optimize for current CPU
     )
 elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     target_compile_options(gemma_sycl_backend PRIVATE

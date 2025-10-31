@@ -185,6 +185,10 @@ if(GEMMA_BUILD_UNIT_TESTS)
         unit/test_cli_commands.cpp
     )
     
+    create_test_executable(test_oneapi_validation
+        unit/test_oneapi_validation.cpp
+    )
+    
     # Create unit test suite target
     add_custom_target(unit_tests
         DEPENDS
@@ -192,6 +196,7 @@ if(GEMMA_BUILD_UNIT_TESTS)
             test_intel_backend
             test_mcp_protocol
             test_cli_commands
+            test_oneapi_validation
     )
 endif()
 

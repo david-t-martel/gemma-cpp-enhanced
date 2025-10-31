@@ -10,6 +10,7 @@
 #include <vector>
 #include <string>
 #include "hwy/base.h"
+#include "hwy/aligned_allocator.h"  // hwy::Span
 
 namespace gcpp {
 namespace HWY_NAMESPACE {

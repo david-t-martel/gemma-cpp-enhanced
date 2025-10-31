@@ -16,6 +16,11 @@
 #ifndef THIRD_PARTY_GEMMA_CPP_GEMMA_SESSION_H_
 #define THIRD_PARTY_GEMMA_CPP_GEMMA_SESSION_H_
 
+// Undefine Windows macros that conflict with our enum
+#ifdef ERROR
+#undef ERROR
+#endif
+
 #include <atomic>
 #include <chrono>
 #include <memory>
@@ -31,6 +36,7 @@
 #include "io/io.h"  // Path
 #include "util/basics.h"  // PromptTokens
 #include "util/threading_context.h"
+#include <shared_mutex>
 
 namespace gcpp {
 
@@ -45,7 +51,7 @@ enum class SessionState {
   ACTIVE,         // Session actively generating responses
   PAUSED,         // Session temporarily paused
   TERMINATED,     // Session ended normally
-  ERROR           // Session in error state
+  ERR_STATE       // Session in error state (renamed to avoid Windows macro conflict)
 };
 
 // Message role in conversation
@@ -205,7 +211,7 @@ private:
   // Internal methods
   void InitializeKVCache();
   PromptTokens TokenizeMessage(const Gemma& gemma, const ConversationMessage& msg) const;
-  PromptTokens BuildContextTokens(const Gemma& gemma) const;
+  std::vector<int> BuildContextTokens(const Gemma& gemma) const;
   void UpdateTokenCount();
   void PerformMemoryCleanup();
   bool ShouldAutoSave() const;

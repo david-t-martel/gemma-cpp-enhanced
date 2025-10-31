@@ -1,0 +1,204 @@
+# Gemma CLI Configuration
+# This file configures the enhanced Gemma CLI with RAG and MCP integration
+
+[gemma]
+# Default model path (can be overridden with --model)
+default_model = "C:\\codedev\\llm\\.models\\gemma-gemmacpp-2b-it-v3\\2b-it.sbs"
+default_tokenizer = "C:\\codedev\\llm\\.models\\gemma-gemmacpp-2b-it-v3\\tokenizer.spm"
+executable = "C:\\codedev\\llm\\gemma\\build-avx2-sycl\\bin\\RELEASE\\gemma.exe"
+
+# Model presets
+[models.gemma-2b-it]
+name = "Gemma 2B Instruction Tuned"
+weights = "C:\\codedev\\llm\\.models\\gemma-gemmacpp-2b-it-v3\\2b-it.sbs"
+tokenizer = "C:\\codedev\\llm\\.models\\gemma-gemmacpp-2b-it-v3\\tokenizer.spm"
+format = "SFP"
+size_gb = 2.5
+avg_tokens_per_sec = 47
+quality = "good"
+use_case = "Quick responses, testing, general chat"
+
+[models.gemma-4b-it]
+name = "Gemma 4B Instruction Tuned"
+weights = "C:\\codedev\\llm\\.models\\gemma-3-gemmaCpp-3.0-4b-it-sfp-v1\\4b-it-sfp.sbs"
+tokenizer = "C:\\codedev\\llm\\.models\\gemma-3-gemmaCpp-3.0-4b-it-sfp-v1\\tokenizer.spm"
+format = "SFP"
+size_gb = 4.8
+avg_tokens_per_sec = 28
+quality = "better"
+use_case = "Complex reasoning, detailed explanations"
+
+# Performance profiles
+[profiles.speed]
+max_tokens = 512
+temperature = 0.3
+top_p = 0.9
+description = "Maximum speed, lower quality"
+
+[profiles.balanced]
+max_tokens = 2048
+temperature = 0.7
+top_p = 0.95
+description = "Balanced performance (default)"
+
+[profiles.quality]
+max_tokens = 4096
+temperature = 0.9
+top_p = 0.98
+description = "Best output quality, slower"
+
+[profiles.creative]
+max_tokens = 3072
+temperature = 1.1
+top_p = 0.95
+description = "Creative writing mode"
+
+[profiles.precise]
+max_tokens = 2048
+temperature = 0.3
+top_p = 0.9
+description = "Factual and technical responses"
+
+[profiles.coding]
+max_tokens = 4096
+temperature = 0.2
+top_p = 0.9
+description = "Code generation and debugging"
+
+# Redis configuration
+[redis]
+host = "localhost"
+port = 6379
+db = 0
+pool_size = 50
+connection_timeout = 5  # seconds
+command_timeout = 3
+max_retries = 3
+retry_delay = 0.1  # seconds
+enable_fallback = true  # Use in-memory if Redis unavailable
+
+# RAG Memory System configuration
+[memory]
+# Tier configuration (TTL in seconds)
+working_ttl = 900  # 15 minutes
+short_term_ttl = 3600  # 1 hour
+long_term_ttl = 2592000  # 30 days
+episodic_ttl = 604800  # 7 days
+semantic_ttl = 0  # Permanent (0 = no expiry)
+
+# Capacity limits
+working_capacity = 15
+short_term_capacity = 100
+long_term_capacity = 10000
+episodic_capacity = 5000
+semantic_capacity = 50000
+
+# Memory management
+consolidation_threshold = 0.75
+importance_decay_rate = 0.1
+cleanup_interval = 300  # 5 minutes
+enable_background_tasks = true
+auto_consolidate = true
+
+# Embedding configuration
+[embedding]
+provider = "local"  # "local", "openai", "custom"
+model = "all-MiniLM-L6-v2"
+dimension = 384
+batch_size = 32
+cache_embeddings = true
+
+# Vector store configuration
+[vector_store]
+dimension = 384
+distance_metric = "cosine"  # "cosine", "euclidean", "dot", "manhattan"
+index_type = "hnsw"  # "hnsw" for Rust backend, "linear" for Python
+hnsw_m = 16
+hnsw_ef_construction = 200
+hnsw_ef_search = 50
+
+# Document ingestion configuration
+[document]
+chunk_size = 512
+chunk_overlap = 50
+min_chunk_size = 100
+max_chunk_size = 1000
+chunking_method = "token"  # "token", "sentence", "semantic", "recursive"
+supported_formats = ["txt", "md", "html", "json", "pdf"]
+max_file_size = 52428800  # 50MB
+
+# MCP Client configuration
+[mcp]
+enabled = true
+servers_config = "config/mcp_servers.toml"
+tool_cache_ttl = 3600  # 1 hour
+connection_timeout = 10
+retry_count = 3
+
+# MCP Server: RAG-Redis
+[mcp.servers.rag-redis]
+enabled = true
+transport = "http"
+url = "http://localhost:8765"
+description = "Rust-powered RAG memory system"
+auto_reconnect = true
+health_check_interval = 60
+
+# MCP Server: Filesystem
+[mcp.servers.filesystem]
+enabled = true
+transport = "stdio"
+command = "python"
+args = ["-m", "mcp_servers.filesystem"]
+description = "File system operations"
+
+# UI Configuration
+[ui]
+theme = "default"  # "default", "dark", "light", "minimal"
+show_memory_stats = true
+show_performance = true
+show_status_bar = true
+progress_style = "rich"  # "rich", "simple", "none"
+color_scheme = "auto"  # "auto", "256", "truecolor", "monochrome"
+
+# Onboarding
+[ui.onboarding]
+show_on_first_run = true
+skip_if_configured = true
+auto_detect_hardware = true
+
+# Autocomplete
+[ui.autocomplete]
+enabled = true
+show_examples = true
+max_suggestions = 5
+
+# Conversation settings
+[conversation]
+max_context_length = 8192
+max_history_messages = 50
+save_directory = "~/.gemma_conversations"
+auto_save = true
+auto_save_interval = 300  # 5 minutes
+
+# System prompt
+[system]
+prompt_file = "config/prompts/GEMMA.md"
+enable_rag_context = true
+max_rag_context_tokens = 2000
+
+# Logging configuration
+[logging]
+level = "INFO"  # "DEBUG", "INFO", "WARNING", "ERROR"
+file = "~/.gemma_cli/gemma.log"
+max_size = 10485760  # 10MB
+backup_count = 5
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Performance monitoring
+[monitoring]
+enabled = true
+track_latency = true
+track_memory = true
+track_token_usage = true
+report_interval = 60  # seconds

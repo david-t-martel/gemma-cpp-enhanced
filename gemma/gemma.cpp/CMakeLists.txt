@@ -249,7 +249,8 @@ if(NOT DEFINED GEMMA_SENTENCEPIECE_LIB)
     message(FATAL_ERROR "GEMMA_SENTENCEPIECE_LIB not defined. Dependencies.cmake should have been included first.")
 endif()
 
-target_link_libraries(libgemma ${GEMMA_HWY_LIBS} ${GEMMA_SENTENCEPIECE_LIB} ${GEMMA_JSON_LIB})
+# Note: Threads already found by root CMakeLists.txt at line 70
+target_link_libraries(libgemma ${GEMMA_HWY_LIBS} ${GEMMA_SENTENCEPIECE_LIB} ${GEMMA_JSON_LIB} Threads::Threads ${GEMMA_BENCHMARK_LIB} ${GEMMA_GTEST_LIBS} ${GEMMA_BACKEND_LIBS})
 target_include_directories(libgemma PUBLIC ${sentencepiece_SOURCE_DIR})
 target_compile_definitions(libgemma PRIVATE $<$<PLATFORM_ID:Windows>:_CRT_SECURE_NO_WARNINGS NOMINMAX>)
 target_compile_options(libgemma PRIVATE $<$<AND:$<PLATFORM_ID:Windows>,$<CXX_COMPILER_ID:Clang>>:-Wno-deprecated-declarations>)
@@ -403,13 +404,8 @@ if(GEMMA_ENABLE_SYCL)
             message(WARNING "Using device library variant (${IntelSYCL_LIBRARY}); linking may require full SYCL import library in some configurations")
           endif()
 
-          # Optionally force Intel compiler globally for SYCL compilation
-          if(GEMMA_FORCE_INTEL_COMPILER_FOR_SYCL AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
-            message(STATUS "GEMMA_FORCE_INTEL_COMPILER_FOR_SYCL=ON: Setting CMAKE_CXX_COMPILER to ${IntelSYCL_COMPILER}")
-            set(CMAKE_CXX_COMPILER "${IntelSYCL_COMPILER}" CACHE FILEPATH "Forced Intel compiler for SYCL" FORCE)
-            # Note: This change will take effect for targets created after this point
-            message(WARNING "Compiler change requires clean rebuild. Consider setting CMAKE_CXX_COMPILER before project() call for best results.")
-          endif()
+          # Note: Compiler is set per-target for SYCL backend (see lines 453-458)
+          # Global CMAKE_CXX_COMPILER override removed to avoid dangerous mid-configuration changes
 
           break()
         endif()
@@ -443,7 +439,16 @@ if(GEMMA_ENABLE_SYCL)
     set(GEMMA_SYCL_INCLUDE_DIR "${IntelSYCL_INCLUDE_DIR}" CACHE INTERNAL "Intel SYCL include directory")
     set(GEMMA_SYCL_LIBRARY "${IntelSYCL_LIBRARY}" CACHE INTERNAL "Intel SYCL library")
 
+    # Save and remove /MP and other compile options before adding SYCL subdirectory
+    # SYCL offloading is incompatible with /MP multi-processor compilation
+    get_directory_property(_SAVED_COMPILE_OPTIONS COMPILE_OPTIONS)
+    set_directory_properties(PROPERTIES COMPILE_OPTIONS "")
+    message(STATUS "SYCL build: Cleared global COMPILE_OPTIONS (including /MP, incompatible with -fsycl)")
+    
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../backends/sycl ${CMAKE_BINARY_DIR}/backends_sycl)
+    
+    # Restore compile options after SYCL subdirectory
+    set_directory_properties(PROPERTIES COMPILE_OPTIONS "${_SAVED_COMPILE_OPTIONS}")
     if(TARGET gemma_sycl_backend)
       list(APPEND GEMMA_BACKEND_LIBS gemma_sycl_backend)
       target_compile_definitions(libgemma PUBLIC GEMMA_ENABLE_SYCL)
@@ -505,6 +510,13 @@ endif()
 # Apply comprehensive optimizations
 apply_gemma_optimizations(libgemma)
 
+# ============================================================================
+# Intel oneAPI Framework Library Integration (Optional)
+# ============================================================================
+if(GEMMA_USE_ONEAPI_LIBS)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/OneAPILibs.cmake)
+endif()
+
 # Set proper output directories for library
 set_target_properties(libgemma PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
@@ -538,6 +550,11 @@ target_link_libraries(gemma_shared PRIVATE
   $<LINK_LIBRARY:WHOLE_ARCHIVE,hwy>
   $<LINK_LIBRARY:WHOLE_ARCHIVE,hwy_contrib>
   $<LINK_LIBRARY:WHOLE_ARCHIVE,${GEMMA_SENTENCEPIECE_LIB}>
+  Threads::Threads
+  ${GEMMA_JSON_LIB}
+  ${GEMMA_BENCHMARK_LIB}
+  ${GEMMA_GTEST_LIBS}
+  ${GEMMA_BACKEND_LIBS}
 )
 target_include_directories(gemma_shared PUBLIC ${sentencepiece_SOURCE_DIR})
 target_compile_definitions(gemma_shared 
@@ -568,11 +585,62 @@ endif()
 # Executable Target
 
 add_executable(gemma run.cc)
-target_link_libraries(gemma libgemma ${GEMMA_HWY_LIBS} ${GEMMA_BACKEND_LIBS})
+target_link_libraries(gemma libgemma ${GEMMA_HWY_LIBS} ${GEMMA_SENTENCEPIECE_LIB} ${GEMMA_BACKEND_LIBS} Threads::Threads ${GEMMA_JSON_LIB} ${GEMMA_BENCHMARK_LIB} ${GEMMA_GTEST_LIBS})
 apply_gemma_optimizations(gemma)
 
-# Ensure gemma executable goes to proper output directory
+# Determine versioned output name based on enabled backends and oneAPI libs
+set(_GEMMA_OUTPUT_NAME "gemma")
+set(_BACKEND_SUFFIX "")
+set(_ONEAPI_SUFFIX "")
+
+# Build backend suffix
+if(GEMMA_BACKEND_LIBS)
+    set(_ACTIVE_BACKENDS "")
+    
+    if("gemma_sycl_backend" IN_LIST GEMMA_BACKEND_LIBS)
+        list(APPEND _ACTIVE_BACKENDS "sycl")
+    endif()
+    if("gemma_cuda_backend" IN_LIST GEMMA_BACKEND_LIBS)
+        list(APPEND _ACTIVE_BACKENDS "cuda")
+    endif()
+    if("gemma_vulkan_backend" IN_LIST GEMMA_BACKEND_LIBS)
+        list(APPEND _ACTIVE_BACKENDS "vulkan")
+    endif()
+    if("gemma_opencl_backend" IN_LIST GEMMA_BACKEND_LIBS)
+        list(APPEND _ACTIVE_BACKENDS "opencl")
+    endif()
+    if("gemma_metal_backend" IN_LIST GEMMA_BACKEND_LIBS)
+        list(APPEND _ACTIVE_BACKENDS "metal")
+    endif()
+    
+    if(_ACTIVE_BACKENDS)
+        string(REPLACE ";" "-" _BACKEND_SUFFIX "${_ACTIVE_BACKENDS}")
+    endif()
+endif()
+
+# Build oneAPI library suffix
+if(GEMMA_ONEAPI_ENABLED_LIBS)
+    string(REPLACE ";" "-" _ONEAPI_SUFFIX "${GEMMA_ONEAPI_ENABLED_LIBS}")
+endif()
+
+# Construct final executable name
+if(_BACKEND_SUFFIX AND _ONEAPI_SUFFIX)
+    set(_GEMMA_OUTPUT_NAME "gemma_hw-${_BACKEND_SUFFIX}+${_ONEAPI_SUFFIX}")
+    message(STATUS "Executable: ${_GEMMA_OUTPUT_NAME}.exe (backends: ${_BACKEND_SUFFIX}, oneAPI: ${_ONEAPI_SUFFIX})")
+elseif(_BACKEND_SUFFIX)
+    set(_GEMMA_OUTPUT_NAME "gemma_hw-${_BACKEND_SUFFIX}")
+    message(STATUS "Executable: ${_GEMMA_OUTPUT_NAME}.exe (backends: ${_BACKEND_SUFFIX})")
+elseif(_ONEAPI_SUFFIX)
+    set(_GEMMA_OUTPUT_NAME "gemma_std+${_ONEAPI_SUFFIX}")
+    message(STATUS "Executable: ${_GEMMA_OUTPUT_NAME}.exe (oneAPI: ${_ONEAPI_SUFFIX})")
+else()
+    set(_GEMMA_OUTPUT_NAME "gemma_std")
+    message(STATUS "Executable: ${_GEMMA_OUTPUT_NAME}.exe (standard CPU-only)")
+endif()
+
+# Ensure gemma executable goes to proper output directory with versioned name
 set_target_properties(gemma PROPERTIES
+    OUTPUT_NAME "${_GEMMA_OUTPUT_NAME}"
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
@@ -583,24 +651,24 @@ install(TARGETS gemma
 )
 
 add_executable(single_benchmark evals/benchmark.cc)
-target_link_libraries(single_benchmark libgemma ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB} ${GEMMA_BACKEND_LIBS})
+target_link_libraries(single_benchmark libgemma ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB} ${GEMMA_BACKEND_LIBS} Threads::Threads ${GEMMA_BENCHMARK_LIB} ${GEMMA_GTEST_LIBS})
 set_target_properties(single_benchmark PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
 add_executable(benchmarks evals/benchmarks.cc)
 if(GEMMA_BUILD_BENCHMARKS AND DEFINED GEMMA_BENCHMARK_LIB)
-    target_link_libraries(benchmarks libgemma ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB} ${GEMMA_BENCHMARK_LIB} ${GEMMA_BACKEND_LIBS})
+    target_link_libraries(benchmarks libgemma ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB} ${GEMMA_BENCHMARK_LIB} ${GEMMA_BACKEND_LIBS} Threads::Threads ${GEMMA_GTEST_LIBS})
 else()
     # Fallback for when benchmarks are built without proper dependency resolution
-    target_link_libraries(benchmarks libgemma ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB} ${GEMMA_BACKEND_LIBS})
+    target_link_libraries(benchmarks libgemma ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB} ${GEMMA_BACKEND_LIBS} Threads::Threads ${GEMMA_BENCHMARK_LIB} ${GEMMA_GTEST_LIBS})
 endif()
 set_target_properties(benchmarks PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
 
 add_executable(debug_prompt evals/debug_prompt.cc)
-target_link_libraries(debug_prompt libgemma ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB} ${GEMMA_BACKEND_LIBS})
+target_link_libraries(debug_prompt libgemma ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB} ${GEMMA_BACKEND_LIBS} Threads::Threads ${GEMMA_BENCHMARK_LIB} ${GEMMA_GTEST_LIBS})
 set_target_properties(debug_prompt PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )
@@ -641,7 +709,7 @@ foreach (TESTFILE IN LISTS GEMMA_TEST_FILES)
   # that include us may set them.
   target_compile_options(${TESTNAME} PRIVATE -DHWY_IS_TEST=1)
 
-  target_link_libraries(${TESTNAME} PRIVATE libgemma GTest::Main ${GEMMA_HWY_LIBS} hwy_test)
+  target_link_libraries(${TESTNAME} PRIVATE libgemma GTest::Main ${GEMMA_HWY_LIBS} hwy_test Threads::Threads ${GEMMA_JSON_LIB} ${GEMMA_BENCHMARK_LIB} ${GEMMA_GTEST_LIBS} ${GEMMA_BACKEND_LIBS})
 
   gtest_discover_tests(${TESTNAME})
 endforeach ()
@@ -649,10 +717,10 @@ endforeach ()
 add_executable(gemma_batch_bench evals/gemma_batch_bench.cc)
 if(GEMMA_ENABLE_TESTS AND DEFINED GEMMA_GTEST_LIBS)
     list(GET GEMMA_GTEST_LIBS 1 GEMMA_GTEST_MAIN)  # gtest_main is second element
-    target_link_libraries(gemma_batch_bench libgemma ${GEMMA_GTEST_MAIN} ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB})
+    target_link_libraries(gemma_batch_bench libgemma ${GEMMA_GTEST_MAIN} ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB} Threads::Threads ${GEMMA_BENCHMARK_LIB} ${GEMMA_BACKEND_LIBS})
 else()
     # Fallback for when tests are built without proper dependency resolution
-    target_link_libraries(gemma_batch_bench libgemma ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB})
+    target_link_libraries(gemma_batch_bench libgemma ${GEMMA_HWY_LIBS} ${GEMMA_JSON_LIB} Threads::Threads ${GEMMA_BENCHMARK_LIB} ${GEMMA_BACKEND_LIBS})
 endif()
 
 endif()  # GEMMA_ENABLE_TESTS
@@ -669,7 +737,7 @@ endif()
 ## Tools
 
 add_executable(migrate_weights io/migrate_weights.cc)
-target_link_libraries(migrate_weights libgemma ${GEMMA_HWY_LIBS})
+target_link_libraries(migrate_weights libgemma ${GEMMA_HWY_LIBS} Threads::Threads)
 set_target_properties(migrate_weights PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
 )

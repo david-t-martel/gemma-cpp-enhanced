@@ -1,0 +1,161 @@
+# MCP Server Configuration for Gemma CLI
+# Reference: https://spec.modelcontextprotocol.io/
+
+# ============================================================================
+# RAG-Redis Server (High-Performance Memory System)
+# ============================================================================
+[rag-redis]
+enabled = false  # Requires external Rust server (optional, use embedded fallback)
+transport = "stdio"
+command = "rag-redis-server"
+args = ["--config", "config/rag_redis.toml"]
+env = {}
+auto_reconnect = true
+max_reconnect_attempts = 5
+reconnect_delay = 1.0
+connection_timeout = 10.0
+request_timeout = 30.0
+health_check_interval = 60.0
+
+# Description: High-performance 5-tier memory system with Redis backend
+# Tools: store_memory, retrieve_context, search_memories, consolidate_memories
+# Requirements: Rust rag-redis-server binary, Redis server
+# Use case: Production-grade RAG with 1M+ documents
+
+
+# ============================================================================
+# Filesystem Server (File Operations)
+# ============================================================================
+[filesystem]
+enabled = true
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "C:/codedev/llm"]
+auto_reconnect = true
+max_reconnect_attempts = 3
+connection_timeout = 10.0
+request_timeout = 30.0
+health_check_interval = 120.0
+
+# Description: MCP filesystem server for file read/write operations
+# Tools: read_file, write_file, list_directory, search_files
+# Requirements: Node.js/npm
+# Use case: File-based tool integration
+
+
+# ============================================================================
+# Memory Server (Conversation Context)
+# ============================================================================
+[memory]
+enabled = true
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-memory"]
+auto_reconnect = true
+max_reconnect_attempts = 3
+connection_timeout = 10.0
+request_timeout = 30.0
+health_check_interval = 120.0
+
+# Description: Simple key-value memory store for conversation context
+# Tools: store_memory, get_memory, list_memories
+# Requirements: Node.js/npm
+# Use case: Lightweight conversation state
+
+
+# ============================================================================
+# GitHub Server (Code Intelligence)
+# ============================================================================
+[github]
+enabled = false  # Requires GITHUB_TOKEN environment variable
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+env = { "GITHUB_TOKEN" = "${GITHUB_TOKEN}" }
+auto_reconnect = true
+max_reconnect_attempts = 3
+connection_timeout = 15.0
+request_timeout = 60.0
+health_check_interval = 300.0
+
+# Description: GitHub API integration for code analysis
+# Tools: search_repositories, get_file_contents, create_issue, list_commits
+# Requirements: Node.js/npm, GITHUB_TOKEN environment variable
+# Use case: Code review, repository analysis
+
+
+# ============================================================================
+# Brave Search Server (Web Search)
+# ============================================================================
+[brave-search]
+enabled = false  # Requires BRAVE_API_KEY environment variable
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-brave-search"]
+env = { "BRAVE_API_KEY" = "${BRAVE_API_KEY}" }
+auto_reconnect = true
+max_reconnect_attempts = 3
+connection_timeout = 15.0
+request_timeout = 30.0
+health_check_interval = 300.0
+
+# Description: Web search integration via Brave Search API
+# Tools: brave_web_search, brave_local_search
+# Requirements: Node.js/npm, BRAVE_API_KEY
+# Use case: Real-time information retrieval
+
+
+# ============================================================================
+# Fetch Server (HTTP Requests)
+# ============================================================================
+[fetch]
+enabled = true
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-fetch"]
+auto_reconnect = true
+max_reconnect_attempts = 3
+connection_timeout = 10.0
+request_timeout = 60.0
+health_check_interval = 180.0
+
+# Description: HTTP/HTTPS fetch capabilities
+# Tools: fetch
+# Requirements: Node.js/npm
+# Use case: Web content retrieval, API integration
+
+
+# ============================================================================
+# Configuration Notes
+# ============================================================================
+#
+# Transport Types:
+#   - stdio: Standard input/output (most common, best for local tools)
+#   - http: HTTP protocol (for remote servers)
+#   - sse: Server-Sent Events (for streaming)
+#   - websocket: WebSocket protocol (for real-time bidirectional communication)
+#
+# Environment Variables:
+#   Use ${VAR_NAME} syntax to reference environment variables
+#   Example: env = { "API_KEY" = "${MY_API_KEY}" }
+#
+# Enabling/Disabling:
+#   Set enabled = true/false to toggle servers
+#   Disabled servers are completely ignored
+#
+# Timeouts:
+#   - connection_timeout: Max time to establish connection (seconds)
+#   - request_timeout: Max time for tool execution (seconds)
+#   - health_check_interval: How often to check server health (seconds, 0 = disable)
+#
+# Reconnection:
+#   - auto_reconnect: Enable automatic reconnection on failure
+#   - max_reconnect_attempts: Max reconnection attempts before giving up
+#   - reconnect_delay: Initial delay between reconnections (exponential backoff)
+#
+# Adding Custom Servers:
+#   1. Add new [server-name] section
+#   2. Specify transport type
+#   3. For stdio: provide command and args
+#   4. For http/sse/websocket: provide url
+#   5. Test with: uv run python -m gemma_cli.cli mcp status

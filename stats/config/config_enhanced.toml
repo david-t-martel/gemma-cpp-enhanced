@@ -1,0 +1,104 @@
+# Gemma CLI Enhanced Configuration with Model Presets and Performance Profiles
+
+[model]
+default_model = "gemma3-4b-it-sfp"
+model_path = "C:/codedev/llm/.models/gemma-3-gemmaCpp-3.0-4b-it-sfp-v1/4b-it-sfp.sbs"
+tokenizer_path = "C:/codedev/llm/.models/gemma-3-gemmaCpp-3.0-4b-it-sfp-v1/tokenizer.spm"
+gemma_executable = "C:/codedev/llm/gemma/build-avx2-sycl/bin/RELEASE/gemma.exe"
+
+[generation]
+max_tokens = 2048
+temperature = 0.7
+max_context = 8192
+
+[rag]
+enabled = true
+redis_url = "redis://localhost:6379"
+prefer_backend = "mcp"  # mcp, ffi, or python
+
+[mcp]
+host = "localhost"
+port = 8765
+timeout = 30
+
+[system]
+system_prompt = """You are a helpful AI assistant. Provide clear, concise, and accurate responses.
+Use the context provided from memory when available to enhance your answers."""
+
+# ============================================================================
+# Model Presets - Predefined model configurations
+# ============================================================================
+
+[model_presets.gemma2-2b-it]
+weights = "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/2b-it.sbs"
+tokenizer = "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/tokenizer.spm"
+format = "sfp"
+size_gb = 2.5
+avg_tokens_per_sec = 45
+quality = "medium"
+use_case = "Fast iteration, testing, lightweight tasks"
+context_length = 8192
+min_ram_gb = 4
+
+[model_presets.gemma3-4b-it-sfp]
+weights = "C:/codedev/llm/.models/gemma-3-gemmaCpp-3.0-4b-it-sfp-v1/4b-it-sfp.sbs"
+tokenizer = "C:/codedev/llm/.models/gemma-3-gemmaCpp-3.0-4b-it-sfp-v1/tokenizer.spm"
+format = "sfp"
+size_gb = 4.8
+avg_tokens_per_sec = 30
+quality = "high"
+use_case = "Balanced quality and speed for production use"
+context_length = 8192
+min_ram_gb = 8
+
+# ============================================================================
+# Performance Profiles - Inference tuning configurations
+# ============================================================================
+
+[performance_profiles.fast]
+max_tokens = 512
+temperature = 0.5
+top_p = 0.9
+top_k = 40
+description = "Quick responses with lower quality, ideal for rapid iteration"
+use_case = "testing"
+
+[performance_profiles.balanced]
+max_tokens = 1024
+temperature = 0.7
+top_p = 0.95
+top_k = 50
+description = "Balance between speed and quality for general use"
+use_case = "general"
+
+[performance_profiles.quality]
+max_tokens = 2048
+temperature = 0.9
+top_p = 0.95
+top_k = 100
+description = "Highest quality responses with longer generation"
+use_case = "production"
+
+[performance_profiles.creative]
+max_tokens = 2048
+temperature = 1.2
+top_p = 0.95
+top_k = 80
+description = "Creative writing with high diversity and randomness"
+use_case = "creative"
+
+[performance_profiles.precise]
+max_tokens = 1024
+temperature = 0.3
+top_p = 0.85
+top_k = 20
+description = "Factual, deterministic responses for technical accuracy"
+use_case = "technical"
+
+[performance_profiles.concise]
+max_tokens = 256
+temperature = 0.6
+top_p = 0.9
+top_k = 30
+description = "Very short, focused responses for quick answers"
+use_case = "quick-qa"

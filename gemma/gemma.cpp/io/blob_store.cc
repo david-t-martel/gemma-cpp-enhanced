@@ -455,7 +455,7 @@ static void EnqueueChunks(size_t key_idx, uint64_t offset, uint64_t bytes,
   }
   if (offset != end) {
     writes.emplace_back(
-        BlobRange{.offset = offset, .bytes = end - offset, .key_idx = key_idx},
+        BlobRange{.offset = offset, .bytes = static_cast<size_t>(end - offset), .key_idx = key_idx},
         data);
   }
 

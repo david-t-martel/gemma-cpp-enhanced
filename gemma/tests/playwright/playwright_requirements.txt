@@ -1,0 +1,30 @@
+# Terminal UI Testing Dependencies
+# For testing gemma-cli terminal interface with snapshot generation
+
+# Core testing framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-timeout>=2.1.0
+
+# Terminal emulation and rendering
+pyte>=0.8.1              # Terminal emulator
+rich>=13.0.0             # Rich console output validation
+
+# Image processing and snapshots
+pillow>=10.0.0           # Image manipulation and comparison
+
+# Optional: Terminal recording
+asciinema>=2.3.0         # Terminal session recording (optional)
+
+# Optional: SVG to PNG conversion
+cairosvg>=2.7.0          # Convert SVG snapshots to PNG (optional)
+
+# Testing utilities
+pytest-cov>=4.1.0        # Code coverage
+pytest-xdist>=3.3.1      # Parallel test execution
+pytest-benchmark>=4.0.0  # Performance benchmarking
+
+# Development tools
+black>=23.0.0            # Code formatting
+ruff>=0.1.0              # Fast linting
+mypy>=1.5.0              # Type checking

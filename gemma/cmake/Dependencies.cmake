@@ -62,6 +62,7 @@ function(ensure_highway_dependency)
         highway
         GIT_REPOSITORY https://github.com/google/highway.git
         GIT_TAG 1d16731233de45a365b43867f27d0a5f73925300
+        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
     )
     FetchContent_MakeAvailable(highway)
@@ -116,6 +117,7 @@ function(ensure_sentencepiece_dependency)
         sentencepiece
         GIT_REPOSITORY https://github.com/google/sentencepiece
         GIT_TAG 53de76561cfc149d3c01037f0595669ad32a5e7c
+        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
         PATCH_COMMAND ${CMAKE_COMMAND} -E echo "Patching sentencepiece CMakeLists.txt for compatibility" &&
                       ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_sentencepiece.cmake" <SOURCE_DIR>
@@ -125,6 +127,18 @@ function(ensure_sentencepiece_dependency)
 endfunction()
 
 function(ensure_nlohmann_json_dependency)
+    # Check local third_party first
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/include/nlohmann/json.hpp")
+        if(NOT TARGET nlohmann_json_local)
+            add_library(nlohmann_json_local INTERFACE)
+            target_include_directories(nlohmann_json_local INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/include")
+            add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json_local)
+        endif()
+        report_dependency_status("nlohmann-json" "nlohmann_json::nlohmann_json" "FOUND" "local third_party")
+        set(GEMMA_JSON_LIB nlohmann_json::nlohmann_json PARENT_SCOPE)
+        return()
+    endif()
+    
     if(GEMMA_PREFER_SYSTEM_DEPS)
         find_package(nlohmann_json QUIET CONFIG)
         if(TARGET nlohmann_json::nlohmann_json)
@@ -134,12 +148,13 @@ function(ensure_nlohmann_json_dependency)
         endif()
     endif()
 
-    # FetchContent fallback
+    # FetchContent fallback with shallow clone for speed
     report_dependency_status("nlohmann-json" "nlohmann_json" "FETCHING" "GitHub FetchContent")
     FetchContent_Declare(
         json
         GIT_REPOSITORY https://github.com/nlohmann/json.git
         GIT_TAG 9cca280a4d0ccf0c08f47a99aa71d1b0e52f8d03
+        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
     )
     FetchContent_MakeAvailable(json)
@@ -164,6 +179,7 @@ function(ensure_gtest_dependency)
         googletest
         GIT_REPOSITORY https://github.com/google/googletest.git
         GIT_TAG v1.14.0
+        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
     )
     FetchContent_MakeAvailable(googletest)
@@ -189,6 +205,7 @@ function(ensure_benchmark_dependency)
         benchmark
         GIT_REPOSITORY https://github.com/google/benchmark.git
         GIT_TAG v1.8.2
+        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL
     )
     FetchContent_MakeAvailable(benchmark)

@@ -164,7 +164,7 @@ function(configure_memory_optimizations target_name)
     # Reduce memory usage during compilation
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_options(${target_name} PRIVATE
-            -fno-keep-inline-dllexport      # Reduce object file size
+            # -fno-keep-inline-dllexport      # Reduce object file size
         )
 
         # Large file support

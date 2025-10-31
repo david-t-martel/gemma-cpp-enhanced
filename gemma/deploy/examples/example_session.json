@@ -1,0 +1,54 @@
+{
+  "session_id": "example_chat",
+  "created_at": "2025-01-22T10:00:00Z",
+  "last_updated": "2025-01-22T10:15:30Z",
+  "conversation_length": 6,
+  "total_turns": 3,
+  "total_input_tokens": 145,
+  "total_output_tokens": 312,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful AI assistant powered by Gemma.",
+      "timestamp": "2025-01-22T10:00:00Z",
+      "tokens": []
+    },
+    {
+      "role": "user",
+      "content": "What is the capital of France?",
+      "timestamp": "2025-01-22T10:05:00Z",
+      "tokens": [2, 1234, 567, 89, 12, 3456, 7890, 3]
+    },
+    {
+      "role": "assistant",
+      "content": "The capital of France is Paris. Paris is not only the capital but also the most populous city in France, known for its art, culture, cuisine, and iconic landmarks like the Eiffel Tower.",
+      "timestamp": "2025-01-22T10:05:15Z",
+      "tokens": [2, 1234, 567, 890, 123, 456, 789, 234, 567, 890, 345, 678, 901, 456, 789, 123, 456, 789, 234, 567, 890, 3]
+    },
+    {
+      "role": "user",
+      "content": "Tell me more about the Eiffel Tower.",
+      "timestamp": "2025-01-22T10:10:00Z",
+      "tokens": [2, 2345, 678, 901, 234, 567, 890, 345, 3]
+    },
+    {
+      "role": "assistant",
+      "content": "The Eiffel Tower is a wrought-iron lattice tower located on the Champ de Mars in Paris. Designed by Gustave Eiffel and completed in 1889, it was initially built as the entrance arch for the 1889 World's Fair. Standing at 330 meters (1,083 feet) tall, it was the tallest man-made structure in the world until 1930. Today, it's one of the most recognizable landmarks globally and attracts millions of visitors each year.",
+      "timestamp": "2025-01-22T10:10:25Z",
+      "tokens": [2, 1234, 567, 890, 234, 567, 890, 345, 678, 901, 456, 789, 123, 456, 789, 234, 567, 890, 345, 678, 901, 234, 567, 890, 345, 678, 901, 234, 567, 890, 345, 678, 901, 234, 567, 890, 345, 678, 901, 234, 567, 3]
+    },
+    {
+      "role": "user",
+      "content": "Can you recommend some other Paris attractions?",
+      "timestamp": "2025-01-22T10:15:00Z",
+      "tokens": [2, 3456, 789, 123, 456, 789, 234, 567, 890, 3]
+    }
+  ],
+  "config": {
+    "context_window_tokens": 4096,
+    "max_history_turns": 50,
+    "auto_save": true
+  },
+  "kv_cache_size": 457,
+  "state": "active"
+}

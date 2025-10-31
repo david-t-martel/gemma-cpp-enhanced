@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(C:usersdavid.localbinpython.exe test_path_security.py)",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__activate_project"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

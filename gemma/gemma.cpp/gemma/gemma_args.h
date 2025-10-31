@@ -210,6 +210,11 @@ struct InferenceArgs : public ArgsBase<InferenceArgs> {
   Path prompt_file;
   std::string eot_line;
 
+  // Session management arguments
+  std::string session_id;
+  bool load_session;
+  bool save_on_exit;
+
   template <class Visitor>
   void ForEach(const Visitor& visitor) {
     visitor(verbosity, "verbosity", 1,
@@ -276,6 +281,13 @@ struct InferenceArgs : public ArgsBase<InferenceArgs> {
         "before the line where only the given string appears.\n    Default = "
         "When a newline is encountered, that signals the end of the turn.",
         2);
+
+    visitor(session_id, "session", std::string("default"),
+            "Session ID to load or create");
+    visitor(load_session, "load_session", false,
+            "Load existing session instead of creating new");
+    visitor(save_on_exit, "save_on_exit", true,
+            "Auto-save session on exit");
   }
 
   void CopyTo(RuntimeConfig& runtime_config) const {

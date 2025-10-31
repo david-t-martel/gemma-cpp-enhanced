@@ -1,0 +1,294 @@
+# Justfile for Gemma.cpp
+# Modern task runner - https://github.com/casey/just
+# Usage: just <recipe>
+
+# Default recipe (runs when just called without arguments)
+default:
+    @just --list --unsorted
+
+# Configuration
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+set dotenv-load := true
+
+# Variables
+model_path := "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3"
+model_2b := model_path / "2b-it.sbs"
+tokenizer_2b := model_path / "tokenizer.spm"
+max_jobs := "10"
+
+# ============================================
+# Build Recipes
+# ============================================
+
+# Show build information
+info:
+    @echo "Gemma.cpp Build Information"
+    @echo "============================"
+    @git describe --tags --always --dirty 2>$null || echo "No git repository"
+    @echo "CMake: {{`cmake --version | Select-Object -First 1`}}"
+    @echo "System: {{os()}} {{arch()}}"
+
+# Clean all build artifacts
+clean:
+    @echo "Cleaning build artifacts..."
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue build*,deploy/gemma.exe
+    @echo "✓ Clean complete"
+
+# Build with MSVC (simple, fast iteration)
+build-msvc BUILD_TYPE="Release": (clean-build "build-msvc")
+    @echo "Building with MSVC ({{BUILD_TYPE}})..."
+    .\build-simple.ps1 -Config {{BUILD_TYPE}} -Jobs {{max_jobs}}
+
+# Build with Intel oneAPI (optimized)
+build-oneapi CONFIG="perfpack": (clean-build "build_{{CONFIG}}")
+    @echo "Building with Intel oneAPI ({{CONFIG}})..."
+    .\build_oneapi.ps1 -Config {{CONFIG}} -Jobs {{max_jobs}}
+
+# Build with specific configuration (default: Release)
+build BUILD_TYPE="Release":
+    @echo "Building Gemma.cpp ({{BUILD_TYPE}})..."
+    cmake -B build -G Ninja -DCMAKE_BUILD_TYPE={{BUILD_TYPE}}
+    cmake --build build --parallel {{max_jobs}}
+
+# Build all variants (MSVC + oneAPI)
+build-all: (build-msvc "Release") (build-oneapi "perfpack")
+    @echo "✓ All builds complete"
+
+# Clean specific build directory
+clean-build BUILD_DIR:
+    @echo "Cleaning {{BUILD_DIR}}..."
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue {{BUILD_DIR}}
+
+# ============================================
+# Testing Recipes
+# ============================================
+
+# Run basic smoke test
+test-smoke BINARY="build/Release/gemma.exe":
+    @echo "Running smoke test..."
+    {{BINARY}} --help | Out-Null
+    if ($LASTEXITCODE -eq 0) { echo "✓ Smoke test passed" } else { echo "✗ Smoke test failed"; exit 1 }
+
+# Test with 2B model (quick inference test)
+test-inference BINARY="build/Release/gemma.exe":
+    @echo "Running inference test with 2B model..."
+    echo "Hello, test" | {{BINARY}} --weights {{model_2b}} --tokenizer {{tokenizer_2b}} --max_generated_tokens 10 --verbosity 0
+
+# Run session persistence tests
+test-session:
+    @echo "Running session persistence tests..."
+    cd deploy && bash test_session_enhanced.sh
+
+# Run all tests
+test: test-smoke test-inference test-session
+    @echo "✓ All tests passed"
+
+# Benchmark with 2B model
+benchmark BINARY="build/Release/single_benchmark.exe":
+    @echo "Running benchmark..."
+    {{BINARY}} --weights {{model_2b}} --tokenizer {{tokenizer_2b}}
+
+# ============================================
+# Deployment Recipes
+# ============================================
+
+# Deploy binary to deploy directory
+deploy BINARY="build/Release/gemma.exe":
+    @echo "Deploying {{BINARY}} to deploy/..."
+    Copy-Item {{BINARY}} deploy/gemma.exe -Force
+    $size = (Get-Item deploy/gemma.exe).Length / 1MB
+    $date = (Get-Item deploy/gemma.exe).LastWriteTime
+    @echo "✓ Deployed: $([math]::Round($size, 2)) MB, $date"
+
+# Create release package
+package VERSION:
+    @echo "Creating release package for v{{VERSION}}..."
+    $pkgDir = "gemma-{{VERSION}}-windows-x64"
+    New-Item -ItemType Directory -Force -Path $pkgDir | Out-Null
+    Copy-Item deploy/gemma.exe $pkgDir/
+    Copy-Item deploy/gemma.config.toml $pkgDir/
+    Copy-Item deploy/DEPLOYMENT_GUIDE.md $pkgDir/
+    Copy-Item deploy/README.txt $pkgDir/
+    Copy-Item -Recurse deploy/examples $pkgDir/
+    Compress-Archive -Path $pkgDir -DestinationPath "$pkgDir.zip" -Force
+    Remove-Item -Recurse $pkgDir
+    @echo "✓ Package created: $pkgDir.zip"
+
+# Create deployment archive with version info
+release: build-oneapi
+    #!/usr/bin/env pwsh
+    $version = (git describe --tags --always --dirty 2>$null) -replace '^v',''
+    if (-not $version) { $version = "dev-$(Get-Date -Format 'yyyyMMdd')" }
+    just package $version
+
+# ============================================
+# Development Recipes
+# ============================================
+
+# Format code (C++ files)
+format:
+    @echo "Formatting code..."
+    Get-ChildItem -Recurse -Include *.cpp,*.h,*.cc | Where-Object { $_.FullName -notmatch 'build|third_party' } | ForEach-Object { clang-format -i $_.FullName }
+    @echo "✓ Code formatted"
+
+# Run linter
+lint:
+    @echo "Running linter..."
+    Get-ChildItem -Recurse -Include *.cpp,*.cc | Where-Object { $_.FullName -notmatch 'build|third_party' } | ForEach-Object { clang-tidy $_.FullName }
+
+# Check for common issues
+check: format lint
+    @echo "✓ Code checks complete"
+
+# Generate compile_commands.json for IDE integration
+compile-db:
+    @echo "Generating compile_commands.json..."
+    cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    Copy-Item build/compile_commands.json . -Force
+    @echo "✓ compile_commands.json generated"
+
+# ============================================
+# Git & Version Recipes
+# ============================================
+
+# Show current version
+version:
+    @git describe --tags --always --dirty 2>$null || echo "dev-unknown"
+
+# Create a new git tag
+tag VERSION:
+    @echo "Creating tag v{{VERSION}}..."
+    git tag -a v{{VERSION}} -m "Release v{{VERSION}}"
+    @echo "✓ Tag created. Push with: git push origin v{{VERSION}}"
+
+# Show git status and version info
+status:
+    @echo "Git Status:"
+    @git status --short
+    @echo ""
+    @echo "Version Information:"
+    @just version
+    @echo ""
+    @echo "Recent Commits:"
+    @git log --oneline -5
+
+# ============================================
+# CI/CD Recipes
+# ============================================
+
+# Run full CI pipeline locally
+ci: clean build-all test
+    @echo "✓ CI pipeline complete"
+
+# Prepare for commit (format, lint, test)
+pre-commit: format lint test-smoke
+    @echo "✓ Ready to commit"
+
+# Quick validation (fast checks before commit)
+quick-check: test-smoke
+    @echo "✓ Quick validation passed"
+
+# ============================================
+# Installation Recipes
+# ============================================
+
+# Install to system (requires admin)
+install PREFIX="C:/Program Files/Gemma":
+    @echo "Installing to {{PREFIX}}..."
+    New-Item -ItemType Directory -Force -Path {{PREFIX}} | Out-Null
+    Copy-Item deploy/gemma.exe {{PREFIX}}/ -Force
+    Copy-Item deploy/gemma.config.toml {{PREFIX}}/ -Force
+    # Add to PATH
+    $env:Path += ";{{PREFIX}}"
+    @echo "✓ Installed to {{PREFIX}}"
+    @echo "Add {{PREFIX}} to your PATH permanently"
+
+# Uninstall from system
+uninstall PREFIX="C:/Program Files/Gemma":
+    @echo "Uninstalling from {{PREFIX}}..."
+    Remove-Item -Recurse -Force {{PREFIX}}
+    @echo "✓ Uninstalled"
+
+# ============================================
+# Documentation Recipes
+# ============================================
+
+# Generate documentation
+docs:
+    @echo "Generating documentation..."
+    doxygen Doxyfile 2>$null || echo "Doxygen not found, skipping"
+    @echo "✓ Documentation generated (if Doxygen available)"
+
+# Serve documentation locally
+docs-serve PORT="8000":
+    @echo "Serving documentation at http://localhost:{{PORT}}"
+    python -m http.server {{PORT}} --directory docs
+
+# ============================================
+# Utility Recipes
+# ============================================
+
+# Run interactive session with 2B model
+run *ARGS="":
+    @echo "Starting Gemma with 2B model..."
+    .\build\Release\gemma.exe --weights {{model_2b}} --tokenizer {{tokenizer_2b}} {{ARGS}}
+
+# Run with session management
+run-session SESSION_ID="dev" *ARGS="":
+    @echo "Starting session: {{SESSION_ID}}"
+    .\build\Release\gemma.exe --weights {{model_2b}} --tokenizer {{tokenizer_2b}} --session {{SESSION_ID}} --save_on_exit {{ARGS}}
+
+# Show model information
+models:
+    @echo "Available Models:"
+    @echo "================="
+    Get-ChildItem C:/codedev/llm/.models -Directory | ForEach-Object {
+        $size = (Get-ChildItem $_.FullName -Include *.sbs | Measure-Object -Property Length -Sum).Sum / 1GB
+        Write-Host "$($_.Name): $([math]::Round($size, 2)) GB"
+    }
+
+# Check system requirements
+requirements:
+    @echo "System Requirements Check:"
+    @echo "=========================="
+    @echo "OS: {{os()}}"
+    @echo "Arch: {{arch()}}"
+    @echo "RAM: $([math]::Round(((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB), 2)) GB"
+    @echo "CPUs: $((Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors)"
+    @echo ""
+    @cmake --version | Select-Object -First 1
+    @echo "Visual Studio: $(if (Test-Path 'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\devenv.exe') { '2022 Community' } else { 'Not found' })"
+    @echo "Intel oneAPI: $(if (Test-Path 'C:\Program Files (x86)\Intel\oneAPI') { 'Installed' } else { 'Not found' })"
+
+# Watch for changes and rebuild (requires watchexec)
+watch RECIPE="build":
+    @echo "Watching for changes..."
+    watchexec -w gemma.cpp -w CMakeLists.txt -e cpp,h,cc,cmake -- just {{RECIPE}}
+
+# ============================================
+# Maintenance Recipes
+# ============================================
+
+# Update dependencies
+update-deps:
+    @echo "Updating dependencies..."
+    git submodule update --remote --merge
+    @echo "✓ Dependencies updated"
+
+# Check for outdated tools
+check-tools:
+    @echo "Tool Versions:"
+    @echo "=============="
+    @cmake --version | Select-Object -First 1
+    @ninja --version
+    @git --version
+    @echo "Compiler: $($env:CXX -split ' ' | Select-Object -First 1) $($(& $($env:CXX -split ' ')[0] --version 2>$null | Select-Object -First 1) -replace '.*version ', '')"
+
+# Show disk usage of build artifacts
+disk-usage:
+    @echo "Build Artifact Disk Usage:"
+    @echo "=========================="
+    Get-ChildItem build* -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $size = (Get-ChildItem $_.FullName -Recurse | Measure-Object -Property Length -Sum).Sum / 1GB
+        Write-Host "$($_.Name): $([math]::Round($size, 2)) GB"
+    }

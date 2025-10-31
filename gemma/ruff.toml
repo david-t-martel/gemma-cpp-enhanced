@@ -1,3 +1,15 @@
+fix = true
+show-fixes = true
+
+cache-dir = ".ruff_cache"
+respect-gitignore = true
+
+unsafe-fixes = false
+preview = false
+
+output-format = "grouped"
+show-source = true
+
 # Ruff configuration for gemma.cpp enhanced project
 # Optimized for Python tooling, testing, and MCP server development
 
@@ -181,43 +193,24 @@ docstring-code-line-length = 88
 # Allow complex comprehensions for numerical computing
 allow-dict-calls-with-keyword-arguments = true
 
-[lint.pandas-vet]
-# Pandas-specific optimizations
-check-all = true
 
 # ==========================================================================
 # Security Configuration
 # ==========================================================================
-[lint.bandit]
-# Security check configuration
-check-typed-exception = true
 
 [lint.flake8-bandit]
 # Additional security rules
 check-typed-exception = true
-hardcoded-tmp-directory = true
+
 
 # ==========================================================================
 # Advanced Features
 # ==========================================================================
 
-# Automatic fixes
-fix = true
-show-fixes = true
 
-# Cache configuration
-cache-dir = ".ruff_cache"
-respect-gitignore = true
 
-# Performance tuning
-unsafe-fixes = false
-preview = false
 
 # ==========================================================================
-# Output and Reporting
-# ==========================================================================
-output-format = "grouped"
-show-source = true
 
 # GitHub Actions integration
 [lint.flake8-annotations]

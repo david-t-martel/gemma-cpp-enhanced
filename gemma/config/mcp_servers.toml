@@ -1,0 +1,73 @@
+# MCP Server Configuration
+# This file defines MCP servers for Gemma CLI integration
+
+# RAG-Redis Server (Rust backend)
+[rag-redis]
+enabled = true
+transport = "stdio"
+command = "rag-redis-server"
+args = ["--config", "config/rag_redis.toml"]
+env = {}
+auto_reconnect = true
+max_reconnect_attempts = 5
+reconnect_delay = 1.0
+connection_timeout = 10.0
+request_timeout = 30.0
+health_check_interval = 60.0
+
+# Filesystem Server
+[filesystem]
+enabled = true
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/c/codedev"]
+env = {}
+auto_reconnect = true
+max_reconnect_attempts = 3
+reconnect_delay = 2.0
+connection_timeout = 10.0
+request_timeout = 30.0
+health_check_interval = 120.0
+
+# Memory Server (example)
+[memory]
+enabled = false
+transport = "stdio"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-memory"]
+env = {}
+auto_reconnect = true
+max_reconnect_attempts = 3
+reconnect_delay = 1.0
+connection_timeout = 10.0
+request_timeout = 30.0
+health_check_interval = 60.0
+
+# HTTP Server Example (placeholder for future)
+[http-example]
+enabled = false
+transport = "http"
+url = "http://localhost:8080/mcp"
+auto_reconnect = true
+max_reconnect_attempts = 5
+reconnect_delay = 2.0
+connection_timeout = 10.0
+request_timeout = 60.0
+health_check_interval = 30.0
+
+# Custom Python MCP Server Example
+[custom-python]
+enabled = false
+transport = "stdio"
+command = "python"
+args = ["-m", "gemma_cli.mcp.custom_server"]
+env = {
+    "PYTHONUNBUFFERED": "1",
+    "LOG_LEVEL": "INFO"
+}
+auto_reconnect = true
+max_reconnect_attempts = 3
+reconnect_delay = 1.0
+connection_timeout = 15.0
+request_timeout = 30.0
+health_check_interval = 60.0

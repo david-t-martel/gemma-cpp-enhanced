@@ -1,0 +1,145 @@
+# Gemma CLI Configuration Example
+# Copy this file to ~/.gemma_cli/config.toml and customize
+
+[gemma]
+default_model = "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/2b-it.sbs"
+default_tokenizer = "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/tokenizer.spm"
+executable = "C:/codedev/llm/gemma/build/Release/gemma.exe"
+
+[redis]
+host = "localhost"
+port = 6379
+db = 0
+pool_size = 10
+connection_timeout = 5
+command_timeout = 10
+max_retries = 3
+retry_delay = 0.1
+enable_fallback = true
+
+[memory]
+# Memory tier TTLs (seconds, 0 = permanent)
+working_ttl = 900              # 15 minutes
+short_term_ttl = 3600          # 1 hour
+long_term_ttl = 2592000        # 30 days
+episodic_ttl = 604800          # 7 days
+semantic_ttl = 0               # Permanent
+
+# Memory tier capacities
+working_capacity = 15
+short_term_capacity = 100
+long_term_capacity = 10000
+episodic_capacity = 5000
+semantic_capacity = 50000
+
+# Memory management
+consolidation_threshold = 0.75
+importance_decay_rate = 0.1
+cleanup_interval = 300
+enable_background_tasks = true
+auto_consolidate = true
+
+[embedding]
+provider = "local"
+model = "all-MiniLM-L6-v2"
+dimension = 384
+batch_size = 32
+cache_embeddings = true
+
+[vector_store]
+dimension = 384
+distance_metric = "cosine"
+index_type = "hnsw"
+hnsw_m = 16
+hnsw_ef_construction = 200
+hnsw_ef_search = 50
+
+[document]
+chunk_size = 512
+chunk_overlap = 50
+min_chunk_size = 100
+max_chunk_size = 1000
+chunking_method = "token"
+supported_formats = ["txt", "md", "html", "json", "pdf"]
+max_file_size = 52428800  # 50MB
+
+[mcp]
+enabled = true
+servers_config = "config/mcp_servers.toml"
+tool_cache_ttl = 3600
+connection_timeout = 10
+retry_count = 3
+
+[ui]
+theme = "default"
+show_memory_stats = true
+show_performance = true
+show_status_bar = true
+progress_style = "rich"
+color_scheme = "auto"
+
+[conversation]
+max_context_length = 8192
+max_history_messages = 50
+save_directory = "~/.gemma_conversations"
+auto_save = true
+auto_save_interval = 300
+
+[system]
+prompt_file = "config/prompts/GEMMA.md"
+enable_rag_context = true
+max_rag_context_tokens = 2000
+
+[logging]
+level = "INFO"
+file = "~/.gemma_cli/gemma.log"
+max_size = 10485760
+backup_count = 5
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+[monitoring]
+enabled = true
+track_latency = true
+track_memory = true
+track_token_usage = true
+report_interval = 60
+
+# Model Presets
+[models.gemma2-2b]
+name = "Gemma 2 2B IT"
+weights = "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/2b-it.sbs"
+tokenizer = "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/tokenizer.spm"
+format = "sbs"
+size_gb = 2.5
+avg_tokens_per_sec = 45
+quality = "good"
+use_case = "Fast iteration, testing"
+
+[models.gemma3-4b]
+name = "Gemma 3 4B IT SFP"
+weights = "C:/codedev/llm/.models/gemma-3-gemmaCpp-3.0-4b-it-sfp-v1/4b-it-sfp.sbs"
+tokenizer = "C:/codedev/llm/.models/gemma-3-gemmaCpp-3.0-4b-it-sfp-v1/tokenizer.spm"
+format = "sfp"
+size_gb = 4.8
+avg_tokens_per_sec = 30
+quality = "better"
+use_case = "Balanced quality/speed"
+
+# Performance Profiles
+[profiles.fast]
+max_tokens = 1024
+temperature = 0.7
+top_p = 0.9
+description = "Fast generation with moderate quality"
+
+[profiles.balanced]
+max_tokens = 2048
+temperature = 0.7
+top_p = 0.9
+description = "Balanced speed and quality"
+
+[profiles.quality]
+max_tokens = 4096
+temperature = 0.8
+top_p = 0.95
+description = "High quality, slower generation"

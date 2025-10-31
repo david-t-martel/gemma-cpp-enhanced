@@ -1,0 +1,69 @@
+=== Building Gemma.cpp: Performance Pack ===
+Build directory: build_perfpack
+
+Initializing oneAPI environment...
+:: initializing oneAPI environment...
+   Initializing Visual Studio command-line environment...
+   Visual Studio version 17.14.17 environment configured.
+   "C:\Program Files\Microsoft Visual Studio\2022\Community\"
+   Visual Studio command-line environment initialized for: 'x64'
+:  advisor -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  compiler -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  dal -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  debugger -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  dev-utilities -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  dnnl -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  dpcpp-ct -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  dpl -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  ipp -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  ippcp -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  mkl -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  mpi -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  ocloc -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  pti -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  tbb -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  umf -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:  vtune -- latest
+'vars.bat' is not recognized as an internal or external command,
+operable program or batch file.
+:: oneAPI environment initialized ::
+Failed to initialize oneAPI environment
+C:\codedev\llm\gemma\build_oneapi.ps1 : Build process failed with exit code 1
+At C:\codedev\llm\gemma\build_oneapi.ps1:110 char:60
++ ... rite-Error "Build process failed with exit code $($Process.ExitCode)"
++                                                       ~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,build_oneapi.ps1
+ 

@@ -89,6 +89,17 @@ repos:
   # ==========================================================================
   # Python Code Quality (Ruff + Black)
   # ==========================================================================
+  - repo: local
+    hooks:
+      - id: ruff-formatter-custom
+        name: Ruff Formatter (Custom)
+        entry: python tools/ruff_formatter.py
+        language: system
+        files: \.py$
+        args: []
+        pass_filenames: true
+        stages: [pre-commit]
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:

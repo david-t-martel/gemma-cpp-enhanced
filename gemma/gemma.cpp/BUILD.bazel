@@ -640,6 +640,10 @@ cc_test(
 cc_binary(
     name = "gemma",
     srcs = ["gemma/run.cc"],
+    copts = select({
+        "@bazel_tools//src/conditions:windows": ["/arch:AVX2"],
+        "//conditions:default": ["-mavx2", "-mfma", "-mf16c", "-mbmi2", "-mbmi", "-mlzcnt"],
+    }),
     deps = [
         ":args",
         ":benchmark_helper",

@@ -1,0 +1,26 @@
+# Gemma CLI Configuration
+
+[model]
+default_model = "4b"
+model_path = "C:/codedev/llm/.models/gemma-3-gemmaCpp-3.0-4b-it-sfp-v1/4b-it-sfp.sbs"
+tokenizer_path = "C:/codedev/llm/.models/gemma-3-gemmaCpp-3.0-4b-it-sfp-v1/tokenizer.spm"
+gemma_executable = "C:/codedev/llm/gemma/build-avx2-sycl/bin/RELEASE/gemma.exe"
+
+[generation]
+max_tokens = 2048
+temperature = 0.7
+max_context = 8192
+
+[rag]
+enabled = true
+redis_url = "redis://localhost:6379"
+prefer_backend = "mcp"  # mcp, ffi, or python
+
+[mcp]
+host = "localhost"
+port = 8765
+timeout = 30
+
+[system]
+system_prompt = """You are a helpful AI assistant. Provide clear, concise, and accurate responses.
+Use the context provided from memory when available to enhance your answers."""

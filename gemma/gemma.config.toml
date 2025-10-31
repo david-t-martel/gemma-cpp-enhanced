@@ -1,0 +1,90 @@
+# Gemma.cpp Configuration File
+# Place this file in the same directory as gemma.exe or at ~/.gemma/config.toml
+
+[model]
+# Default model paths (can be overridden with command-line arguments)
+weights = "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/2b-it.sbs"
+tokenizer = "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/tokenizer.spm"
+
+[inference]
+# Generation parameters
+max_generated_tokens = 2048
+temperature = 0.7
+top_k = 40
+verbosity = 1
+
+# Advanced sampling (set to 0.0 to disable)
+min_p = 0.0              # Min-P sampling threshold
+typical_p = 1.0          # Typical-P sampling (1.0 = disabled)
+dynatemp_range = 0.0     # Dynamic temperature range
+dynatemp_exponent = 1.0  # Dynamic temperature exponent
+
+# DRY (Don't Repeat Yourself) penalty
+dry_multiplier = 0.0     # DRY penalty strength (0.0 = disabled)
+dry_base = 1.75          # DRY penalty base
+dry_allowed_length = 2   # Repetition length before penalty
+dry_penalty_last_n = 256 # Tokens to consider for DRY
+
+# Context and batching
+seq_len = 4096           # Maximum sequence length
+prefill_tbatch = 256     # Prefill batch size
+decode_qbatch = 16       # Decode batch size
+
+[session]
+# Session management defaults
+default_session_id = "default"
+auto_save = true
+save_on_exit = true
+session_directory = "."  # Directory for session JSON files
+
+# Session limits
+max_history_turns = 50
+context_window_tokens = 4096
+auto_save_interval = 300  # seconds (5 minutes)
+
+[profiles]
+# Quick-switch performance profiles
+# Use with --profile <name> to activate
+
+[profiles.fast]
+max_generated_tokens = 512
+temperature = 0.3
+top_k = 20
+seq_len = 2048
+
+[profiles.balanced]
+max_generated_tokens = 2048
+temperature = 0.7
+top_k = 40
+seq_len = 4096
+
+[profiles.quality]
+max_generated_tokens = 4096
+temperature = 0.8
+top_k = 60
+seq_len = 8192
+
+[profiles.creative]
+max_generated_tokens = 3072
+temperature = 1.0
+top_k = 80
+seq_len = 4096
+
+[profiles.coding]
+max_generated_tokens = 4096
+temperature = 0.2
+top_k = 20
+seq_len = 8192
+
+# Model presets for easy switching
+[models.gemma2-2b]
+name = "Gemma 2 2B Instruction Tuned"
+weights = "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/2b-it.sbs"
+tokenizer = "C:/codedev/llm/.models/gemma-gemmacpp-2b-it-v3/tokenizer.spm"
+description = "Fast, good quality, general purpose"
+
+[models.gemma3-4b]
+name = "Gemma 3 4B Instruction Tuned (SFP)"
+weights = "C:/codedev/llm/.models/gemma-3-gemmaCpp-3.0-4b-it-sfp-v1/4b-it-sfp.sbs"
+tokenizer = "C:/codedev/llm/.models/gemma-3-gemmaCpp-3.0-4b-it-sfp-v1/tokenizer.spm"
+description = "Better quality, balanced speed, SFP optimized"

@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gemma-cli"
+version = "0.1.0"
+description = "A command-line interface for the Gemma project."
+authors = [{name = "Development Team"}]
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+keywords = ["llm", "gemma", "pytorch", "mcp", "rust", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    # Core ML dependencies
+    "torch>=2.0.0",
+    "transformers>=4.35.0",
+    "accelerate>=0.24.0",
+    "tokenizers>=0.15.0",
+    "sentencepiece>=0.1.99",
+    "bitsandbytes>=0.41.0",
+    "safetensors>=0.4.0",
+    "datasets>=2.14.0",
+    # Web framework
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "websockets>=12.0",
+    "aiofiles>=23.2.0",
+    "python-multipart>=0.0.6",
+    # CLI and UI
+    "typer>=0.9.0",
+    "rich>=13.5.0",
+    "tqdm>=4.66.0",
+    # Data validation
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    # HTTP client
+    "httpx>=0.25.0",
+    "requests>=2.31.0",
+    # YAML configuration
+    "pyyaml>=6.0.0",
+    # MCP server support (install separately with: uv pip install mcp)
+    "anyio>=4.0.0",
+    "jsonschema>=4.17.0",
+    # System utilities
+    "psutil>=5.9.0",
+    "aiohttp>=3.12.15",
+    "redis>=6.4.0",
+    "numpy>=2.3.3",
+]
+
+[project.scripts]
+gemma-cli = "gemma_cli.main:app"
+
+# Setuptools configuration
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["*"]

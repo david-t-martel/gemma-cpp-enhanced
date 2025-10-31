@@ -1,1 +1,7 @@
+build --compilation_mode=opt
+build:windows --copt=/arch:AVX2
+build:msvc --compiler=msvc
+build:clang-cl --compiler=clang-cl
+test --test_output=errors
+
 common --enable_bzlmod

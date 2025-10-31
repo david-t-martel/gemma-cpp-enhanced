@@ -29,9 +29,11 @@
 #include "gemma/configs.h"
 #include "gemma/gemma_args.h"
 #include "gemma/kv_cache.h"
+#include "gemma/tokenizer.h"
 #include "ops/matmul.h"
 #include "util/basics.h"
 #include "util/threading_context.h"
+#include <shared_mutex>
 
 #include <nlohmann/json.hpp>
 
@@ -93,7 +95,7 @@ bool GemmaSession::Initialize(const Gemma& gemma) {
     SetState(SessionState::ACTIVE);
     return true;
   } catch (const std::exception& e) {
-    SetState(SessionState::ERROR);
+    SetState(SessionState::ERR_STATE);
     return false;
   }
 }
@@ -161,9 +163,79 @@ void GemmaSession::GenerateResponseStream(const Gemma& gemma,
                                          MatMulEnv& env,
                                          const RuntimeConfig& runtime_config,
                                          StreamCallback callback) {
-  // Simplified implementation
-  std::string response = "Test streaming response";
-  callback(response, true);
+  std::lock_guard<std::recursive_mutex> lock(session_mutex_);
+
+  if (GetState() != SessionState::ACTIVE) {
+    callback("Error: Session not in active state", true);
+    return;
+  }
+
+  try {
+    SetState(SessionState::ACTIVE);
+
+    // Build context tokens from conversation history
+    PromptTokens context_tokens = BuildContextTokens(gemma);
+
+    if (context_tokens.empty()) {
+      callback("Error: No context available", true);
+      return;
+    }
+
+    // Prepare for generation
+    TimingInfo timing_info;
+    timing_info.verbosity = 0; // Suppress internal timing output
+    timing_info.prefill_start = hwy::platform::Now();
+
+    std::string response_text;
+    size_t tokens_generated = 0;
+
+    // Create runtime config with streaming callback
+    RuntimeConfig stream_config = runtime_config;
+    stream_config.stream_token = [&](int token, float prob) -> bool {
+      std::string token_text;
+      if (gemma.Tokenizer().Decode({token}, &token_text)) {
+        response_text += token_text;
+        tokens_generated++;
+
+        // Check generation limits
+        if (tokens_generated >= config_.max_generation_tokens) {
+          return false;
+        }
+
+        // Call user callback
+        return callback(token_text, false);
+      }
+      return true;
+    };
+
+    // Generate response using Gemma
+    gemma.Generate(stream_config, context_tokens, current_position_,
+                   *kv_cache_, env, timing_info);
+
+    // Add assistant response to conversation history
+    conversation_history_.emplace_back(MessageRole::ASSISTANT, response_text);
+
+    // Update statistics
+    stats_.total_turns.fetch_add(1);
+    stats_.total_output_tokens.fetch_add(tokens_generated);
+    stats_.last_active = std::chrono::system_clock::now();
+
+    // Update position and token count
+    current_position_ += tokens_generated;
+    UpdateTokenCount();
+
+    // Final callback
+    callback("", true);
+
+    // Check if auto-save is needed
+    if (ShouldAutoSave()) {
+      AutoSave();
+    }
+
+  } catch (const std::exception& e) {
+    SetState(SessionState::ERR_STATE);
+    callback(std::string("Error during generation: ") + e.what(), true);
+  }
 }
 
 size_t GemmaSession::GetConversationLength() const {
@@ -309,11 +381,129 @@ PromptTokens GemmaSession::TokenizeMessage(const Gemma& gemma,
   return {};
 }
 
-PromptTokens GemmaSession::BuildContextTokens(const Gemma& gemma) const {
-  PromptTokens context_tokens;
+std::vector<int> GemmaSession::BuildContextTokens(const Gemma& gemma) const {
+  std::vector<int> context_tokens;
   context_tokens.reserve(config_.context_window_tokens);
 
-  // Simplified - just return empty tokens for now
+  if (conversation_history_.empty()) {
+    return context_tokens;
+  }
+
+  // Get prompt wrapping setting from model config
+  const PromptWrapping wrapping = gemma.Config().wrapping;
+
+  // Track position as we add tokens
+  size_t pos = current_position_;
+
+  // First pass: collect all message tokens to check total size
+  std::vector<std::vector<int>> message_tokens;
+  message_tokens.reserve(conversation_history_.size());
+  size_t total_tokens = 0;
+
+  for (const auto& msg : conversation_history_) {
+    // Use pre-tokenized tokens if available, otherwise tokenize the message
+    std::vector<int> tokens;
+    if (!msg.tokens.empty()) {
+      tokens = msg.tokens;
+    } else {
+      // Use WrapAndTokenize for proper chat template formatting
+      tokens = WrapAndTokenize(
+        gemma.Tokenizer(),
+        gemma.ChatTemplate(),
+        wrapping,
+        pos + total_tokens,
+        msg.content
+      );
+    }
+
+    message_tokens.push_back(std::move(tokens));
+    total_tokens += message_tokens.back().size();
+  }
+
+  // Determine which messages to include based on context window
+  size_t start_message_idx = 0;
+
+  if (total_tokens > config_.context_window_tokens) {
+    // Need to trim - implement intelligent trimming strategy
+
+    // Strategy: Keep system messages (if any) + most recent messages that fit
+    std::vector<size_t> system_message_indices;
+    size_t system_tokens = 0;
+
+    // Find and reserve space for system messages
+    for (size_t i = 0; i < conversation_history_.size(); ++i) {
+      if (conversation_history_[i].role == MessageRole::SYSTEM) {
+        system_message_indices.push_back(i);
+        system_tokens += message_tokens[i].size();
+      }
+    }
+
+    // Calculate how many tokens we can use for non-system messages
+    size_t available_tokens = config_.context_window_tokens;
+    if (system_tokens < available_tokens) {
+      available_tokens -= system_tokens;
+    } else {
+      // System messages alone exceed context - keep only most recent system message
+      if (!system_message_indices.empty()) {
+        size_t last_system_idx = system_message_indices.back();
+        system_message_indices.clear();
+        system_message_indices.push_back(last_system_idx);
+        system_tokens = message_tokens[last_system_idx].size();
+        available_tokens = config_.context_window_tokens > system_tokens
+                              ? config_.context_window_tokens - system_tokens
+                              : 0;
+      }
+    }
+
+    // Work backwards from most recent messages to fit in available space
+    size_t accumulated_tokens = 0;
+    start_message_idx = conversation_history_.size();
+
+    for (size_t i = conversation_history_.size(); i > 0; --i) {
+      size_t idx = i - 1;
+
+      // Skip system messages (already counted)
+      if (conversation_history_[idx].role == MessageRole::SYSTEM &&
+          std::find(system_message_indices.begin(), system_message_indices.end(), idx)
+            != system_message_indices.end()) {
+        continue;
+      }
+
+      size_t msg_tokens = message_tokens[idx].size();
+      if (accumulated_tokens + msg_tokens <= available_tokens) {
+        accumulated_tokens += msg_tokens;
+        start_message_idx = idx;
+      } else {
+        break;
+      }
+    }
+
+    // Now build context_tokens with system messages first, then recent messages
+    for (size_t sys_idx : system_message_indices) {
+      context_tokens.insert(context_tokens.end(),
+                           message_tokens[sys_idx].begin(),
+                           message_tokens[sys_idx].end());
+    }
+
+    // Add recent messages (excluding system messages already added)
+    for (size_t i = start_message_idx; i < conversation_history_.size(); ++i) {
+      if (conversation_history_[i].role == MessageRole::SYSTEM &&
+          std::find(system_message_indices.begin(), system_message_indices.end(), i)
+            != system_message_indices.end()) {
+        continue; // Already added
+      }
+
+      context_tokens.insert(context_tokens.end(),
+                           message_tokens[i].begin(),
+                           message_tokens[i].end());
+    }
+  } else {
+    // All messages fit - add them all in order
+    for (const auto& tokens : message_tokens) {
+      context_tokens.insert(context_tokens.end(), tokens.begin(), tokens.end());
+    }
+  }
+
   return context_tokens;
 }
 

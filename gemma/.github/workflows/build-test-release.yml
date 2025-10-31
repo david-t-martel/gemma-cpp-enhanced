@@ -1,0 +1,306 @@
+# CI/CD Pipeline for Gemma.cpp
+# Automated build, test, and release workflow
+
+name: Build, Test & Release
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+          - RelWithDebInfo
+
+env:
+  CMAKE_VERSION: '3.27.0'
+  NINJA_VERSION: '1.11.1'
+  CCACHE_VERSION: '4.8.3'
+
+jobs:
+  # ============================================
+  # Version and Pre-checks
+  # ============================================
+  version:
+    name: Generate Version Info
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version_full: ${{ steps.version.outputs.version_full }}
+      build_id: ${{ steps.version.outputs.build_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION=$(git describe --tags --always --dirty)
+          fi
+
+          COMMIT_HASH=$(git rev-parse --short=8 HEAD)
+          BUILD_ID="${VERSION}-${COMMIT_HASH}"
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_full=${VERSION}.${COMMIT_HASH}" >> $GITHUB_OUTPUT
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+
+          echo "::notice::Version: $VERSION"
+          echo "::notice::Build ID: $BUILD_ID"
+
+  # ============================================
+  # Build Matrix
+  # ============================================
+  build:
+    name: Build ${{ matrix.config.name }}
+    needs: version
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "Windows MSVC"
+            os: windows-latest
+            compiler: msvc
+            build_type: Release
+            generator: "Visual Studio 17 2022"
+
+          - name: "Windows Intel oneAPI"
+            os: windows-latest
+            compiler: icx
+            build_type: Release
+            generator: Ninja
+
+          - name: "Ubuntu GCC"
+            os: ubuntu-latest
+            compiler: gcc
+            build_type: Release
+            generator: Ninja
+
+          - name: "macOS Clang"
+            os: macos-latest
+            compiler: clang
+            build_type: Release
+            generator: Ninja
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Cache build artifacts
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/ccache
+            ~/.cache/sccache
+            build/
+          key: ${{ runner.os }}-${{ matrix.config.compiler }}-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.config.compiler }}-
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build ccache
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja ccache
+
+      - name: Setup MSVC
+        if: matrix.config.compiler == 'msvc'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup Intel oneAPI
+        if: matrix.config.compiler == 'icx'
+        uses: rscohn2/setup-oneapi@v0
+        with:
+          components: |
+            icx
+            mkl
+            tbb
+            ipp
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -G "${{ matrix.config.generator }}" \
+            -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }} \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build
+        run: |
+          cmake --build build --config ${{ matrix.config.build_type }} --parallel 10
+
+      - name: Generate version info
+        run: |
+          cmake --build build --target version_info || true
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: gemma-${{ matrix.config.name }}-${{ needs.version.outputs.build_id }}
+          path: |
+            build/Release/gemma.exe
+            build/Release/gemma
+            build/bin/gemma*
+          retention-days: 7
+
+      - name: Upload build info
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-info-${{ matrix.config.name }}
+          path: |
+            build/include/gemma/version.h
+            build/CMakeCache.txt
+          retention-days: 7
+
+  # ============================================
+  # Testing
+  # ============================================
+  test:
+    name: Test ${{ matrix.config.name }}
+    needs: [version, build]
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "Windows"
+            os: windows-latest
+            binary_path: "build/Release/gemma.exe"
+
+          - name: "Ubuntu"
+            os: ubuntu-latest
+            binary_path: "build/gemma"
+
+          - name: "macOS"
+            os: macos-latest
+            binary_path: "build/gemma"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary
+        uses: actions/download-artifact@v3
+        with:
+          name: gemma-${{ matrix.config.name }}-${{ needs.version.outputs.build_id }}
+          path: build/Release
+
+      - name: Make binary executable
+        if: runner.os != 'Windows'
+        run: chmod +x ${{ matrix.config.binary_path }}
+
+      - name: Smoke test
+        run: |
+          ${{ matrix.config.binary_path }} --help
+
+      - name: Version test
+        run: |
+          ${{ matrix.config.binary_path }} --version || true
+
+      - name: Run unit tests
+        if: runner.os != 'Windows'
+        run: |
+          ctest --test-dir build --output-on-failure
+
+  # ============================================
+  # Package & Release
+  # ============================================
+  package:
+    name: Create Release Package
+    needs: [version, build, test]
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Create release package
+        run: |
+          $version = "${{ needs.version.outputs.version }}"
+          $pkgDir = "gemma-$version-windows-x64"
+
+          New-Item -ItemType Directory -Force -Path $pkgDir
+
+          # Copy binaries
+          Copy-Item artifacts/gemma-Windows-*/gemma.exe $pkgDir/
+
+          # Copy documentation
+          Copy-Item deploy/DEPLOYMENT_GUIDE.md $pkgDir/
+          Copy-Item deploy/README.txt $pkgDir/
+          Copy-Item deploy/gemma.config.toml $pkgDir/
+          Copy-Item -Recurse deploy/examples $pkgDir/
+
+          # Create archive
+          Compress-Archive -Path $pkgDir -DestinationPath "$pkgDir.zip" -Force
+
+          # Calculate checksums
+          $hash = (Get-FileHash "$pkgDir.zip" -Algorithm SHA256).Hash
+          "$hash  $pkgDir.zip" | Out-File -FilePath "$pkgDir.zip.sha256"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            gemma-*.zip
+            gemma-*.sha256
+          body: |
+            ## Gemma.cpp ${{ needs.version.outputs.version }}
+
+            **Build ID**: `${{ needs.version.outputs.build_id }}`
+            **Commit**: `${{ github.sha }}`
+
+            ### Downloads
+            - Windows x64: `gemma-${{ needs.version.outputs.version }}-windows-x64.zip`
+
+            ### Checksums
+            SHA256 checksums are provided in `.sha256` files.
+
+            ### Documentation
+            See [DEPLOYMENT_GUIDE.md](deploy/DEPLOYMENT_GUIDE.md) for setup instructions.
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================
+  # Notify
+  # ============================================
+  notify:
+    name: Notify Status
+    needs: [version, build, test]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Build status
+        run: |
+          if [ "${{ needs.build.result }}" == "success" ] && [ "${{ needs.test.result }}" == "success" ]; then
+            echo "::notice::Build and tests passed for version ${{ needs.version.outputs.version }}"
+          else
+            echo "::error::Build or tests failed"
+            exit 1
+          fi

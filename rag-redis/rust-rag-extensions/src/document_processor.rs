@@ -18,6 +18,15 @@ use std::collections::HashMap;
 use std::io::{Cursor, Read};
 use std::path::Path;
 use tracing::{info, warn};
+use zip::ZipArchive;
+use csv::ReaderBuilder;
+
+impl From<GemmaError> for PyErr {
+    fn from(err: GemmaError) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyValueError>(err.to_string())
+    }
+}
+
 
 /// Supported document formats
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

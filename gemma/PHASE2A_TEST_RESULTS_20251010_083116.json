@@ -1,0 +1,265 @@
+{
+  "Tests": [
+    {
+      "Status": "FAIL",
+      "Category": "Prerequisites",
+      "Name": "Phase 1 implementation file exists",
+      "Timestamp": "2025-10-10T08:31:10.0717564-04:00"
+    },
+    {
+      "Status": "SKIP",
+      "Category": "Prerequisites",
+      "Name": "Can load Phase 1 implementation",
+      "Timestamp": "2025-10-10T08:31:10.0906407-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Prerequisites",
+      "Name": "Set-LLMProfile function is available",
+      "Timestamp": "2025-10-10T08:31:10.3588888-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Prerequisites",
+      "Name": "Get-LLMProfile function is available",
+      "Timestamp": "2025-10-10T08:31:10.5718449-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Prerequisites",
+      "Name": "Profile directory structure exists",
+      "Timestamp": "2025-10-10T08:31:10.5780706-04:00"
+    },
+    {
+      "Status": "PASS",
+      "Category": "Auto-Claude",
+      "Name": "Auto-Claude module file exists",
+      "Timestamp": "2025-10-10T08:31:10.6186921-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Auto-Claude",
+      "Name": "Can load Auto-Claude module",
+      "Timestamp": "2025-10-10T08:31:10.6477645-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Auto-Claude",
+      "Name": "Invoke-AutoClaude function is available",
+      "Timestamp": "2025-10-10T08:31:10.8669098-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Auto-Claude",
+      "Name": "Get-AutoClaudeConfig function is available",
+      "Timestamp": "2025-10-10T08:31:11.0577191-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Auto-Claude",
+      "Name": "Set-AutoClaudeConfig function is available",
+      "Timestamp": "2025-10-10T08:31:11.2870625-04:00"
+    },
+    {
+      "Status": "PASS",
+      "Category": "Auto-Claude",
+      "Name": "Auto-Claude alias 'ac' is available",
+      "Timestamp": "2025-10-10T08:31:11.2959841-04:00"
+    },
+    {
+      "Status": "PASS",
+      "Category": "Auto-Claude",
+      "Name": "Auto-Claude alias 'claude' is available",
+      "Timestamp": "2025-10-10T08:31:11.3018560-04:00"
+    },
+    {
+      "Status": "SKIP",
+      "Category": "Auto-Claude",
+      "Name": "Auto-Claude binary detection works",
+      "Timestamp": "2025-10-10T08:31:11.5426311-04:00"
+    },
+    {
+      "Status": "SKIP",
+      "Category": "Auto-Claude",
+      "Name": "Can get Auto-Claude config without active profile",
+      "Timestamp": "2025-10-10T08:31:11.7444510-04:00"
+    },
+    {
+      "Status": "PASS",
+      "Category": "RAG-Redis",
+      "Name": "RAG-Redis module file exists",
+      "Timestamp": "2025-10-10T08:31:11.7559940-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "RAG-Redis",
+      "Name": "Can load RAG-Redis module",
+      "Timestamp": "2025-10-10T08:31:11.7831021-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "RAG-Redis",
+      "Name": "Initialize-RagRedis function is available",
+      "Timestamp": "2025-10-10T08:31:11.9994985-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "RAG-Redis",
+      "Name": "Add-RagDocument function is available",
+      "Timestamp": "2025-10-10T08:31:12.2445211-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "RAG-Redis",
+      "Name": "Search-RagDocuments function is available",
+      "Timestamp": "2025-10-10T08:31:12.4827747-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "RAG-Redis",
+      "Name": "Clear-RagDocuments function is available",
+      "Timestamp": "2025-10-10T08:31:12.6794634-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "RAG-Redis",
+      "Name": "Stop-RagRedis function is available",
+      "Timestamp": "2025-10-10T08:31:12.9264624-04:00"
+    },
+    {
+      "Status": "PASS",
+      "Category": "RAG-Redis",
+      "Name": "RAG-Redis binary detection",
+      "Timestamp": "2025-10-10T08:31:12.9381078-04:00"
+    },
+    {
+      "Status": "PASS",
+      "Category": "RAG-Redis",
+      "Name": "Redis connectivity check",
+      "Timestamp": "2025-10-10T08:31:13.0732565-04:00"
+    },
+    {
+      "Status": "PASS",
+      "Category": "Tool-Hooks",
+      "Name": "Tool Hooks module file exists",
+      "Timestamp": "2025-10-10T08:31:13.1121650-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Tool-Hooks",
+      "Name": "Can load Tool Hooks module",
+      "Timestamp": "2025-10-10T08:31:13.1412477-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Tool-Hooks",
+      "Name": "Register-ToolHook function is available",
+      "Timestamp": "2025-10-10T08:31:13.3958128-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Tool-Hooks",
+      "Name": "Invoke-ToolWithHooks function is available",
+      "Timestamp": "2025-10-10T08:31:13.5989450-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Tool-Hooks",
+      "Name": "Test-CommandSecurity function is available",
+      "Timestamp": "2025-10-10T08:31:13.8113204-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Tool-Hooks",
+      "Name": "Get-ToolAuditLog function is available",
+      "Timestamp": "2025-10-10T08:31:14.0421442-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Tool-Hooks",
+      "Name": "Clear-ToolAuditLog function is available",
+      "Timestamp": "2025-10-10T08:31:14.2747816-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Tool-Hooks",
+      "Name": "Hook registration works",
+      "Timestamp": "2025-10-10T08:31:14.4587668-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Tool-Hooks",
+      "Name": "Security scan detects safe command",
+      "Timestamp": "2025-10-10T08:31:14.5941073-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Tool-Hooks",
+      "Name": "Security scan detects dangerous command",
+      "Timestamp": "2025-10-10T08:31:14.7217177-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "Tool-Hooks",
+      "Name": "Security scan detects rm -rf pattern",
+      "Timestamp": "2025-10-10T08:31:14.8938330-04:00"
+    },
+    {
+      "Status": "PASS",
+      "Category": "Tool-Hooks",
+      "Name": "Audit log directory is created",
+      "Timestamp": "2025-10-10T08:31:14.9060168-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "E2E",
+      "Name": "Create test profile",
+      "Timestamp": "2025-10-10T08:31:15.1013065-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "E2E",
+      "Name": "Profile configuration persisted",
+      "Timestamp": "2025-10-10T08:31:15.1067112-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "E2E",
+      "Name": "Can set Auto-Claude config for profile",
+      "Timestamp": "2025-10-10T08:31:15.2599860-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "E2E",
+      "Name": "Can add context path to profile",
+      "Timestamp": "2025-10-10T08:31:15.4645445-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "E2E",
+      "Name": "Auto-Claude config reflects profile settings",
+      "Timestamp": "2025-10-10T08:31:15.6780534-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "E2E",
+      "Name": "Can retrieve profile",
+      "Timestamp": "2025-10-10T08:31:15.8335844-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "E2E",
+      "Name": "Hook with profile context injection",
+      "Timestamp": "2025-10-10T08:31:15.9778496-04:00"
+    },
+    {
+      "Status": "FAIL",
+      "Category": "E2E",
+      "Name": "Security scan with audit logging",
+      "Timestamp": "2025-10-10T08:31:16.1516204-04:00"
+    }
+  ],
+  "Passed": 8,
+  "Skipped": 3,
+  "Failed": 32
+}
